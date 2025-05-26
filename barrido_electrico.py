@@ -1,10 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Thu May 22 13:57:58 2025
-
-@author: alopagui
-"""
-
 import pandas as pd
 
 # ---- Importar dependencias ----
@@ -25,12 +18,14 @@ def cargar_datos(file_circuitos, file_elementos_corte, file_lineas):
         print(f"❌ Error: Archivo no encontrado - {e.filename}")
         return None, None, None
     except Exception as e:
-        print(f"❌ Error al leer los archivos Excel: {e}")
+        print(f"❌ Error al leer los archivos CSV: {e}")
         return None, None, None
 
     columnas_esperadas_circuitos = ["Circuito"]
-    columnas_esperadas_elementos_corte = ["G3E_FID", "NODO1_ID", "NODO2_ID", "CODIGO_OPERATIVO"]
-    columnas_esperadas_lineas = ["G3E_FID", "NODO1_ID", "NODO2_ID"]
+    # Asegúrate de que 'TIPO' y 'EST_ESTABLE' estén si las usas directamente de df_elementos_corte
+    columnas_esperadas_elementos_corte = ["G3E_FID", "NODO1_ID", "NODO2_ID", "CODIGO_OPERATIVO", "CIRCUITO", "TIPO", "EST_ESTABLE"]
+    columnas_esperadas_lineas = ["G3E_FID", "NODO1_ID", "NODO2_ID", "CIRCUITO"]
+
 
     if df_circuitos is not None:
         if not all(col in df_circuitos.columns for col in columnas_esperadas_circuitos):
@@ -41,403 +36,388 @@ def cargar_datos(file_circuitos, file_elementos_corte, file_lineas):
 
     if df_elementos_corte is not None:
         if not all(col in df_elementos_corte.columns for col in columnas_esperadas_elementos_corte):
-            print(f"❌ Error: Faltan columnas en {file_elementos_corte}. Se esperan: {columnas_esperadas_elementos_corte}")
+            faltantes_ec = [col for col in columnas_esperadas_elementos_corte if col not in df_elementos_corte.columns]
+            print(f"❌ Error: Faltan columnas en {file_elementos_corte}. Se esperan: {columnas_esperadas_elementos_corte}. Faltan: {faltantes_ec}")
             return None, None, None
         df_elementos_corte['G3E_FID'] = df_elementos_corte['G3E_FID'].astype(str).str.strip()
         df_elementos_corte['NODO1_ID'] = df_elementos_corte['NODO1_ID'].astype(str).str.strip()
         df_elementos_corte['NODO2_ID'] = df_elementos_corte['NODO2_ID'].astype(str).str.strip()
         df_elementos_corte['CODIGO_OPERATIVO'] = df_elementos_corte['CODIGO_OPERATIVO'].astype(str).str.strip()
+        df_elementos_corte['CIRCUITO'] = df_elementos_corte['CIRCUITO'].astype(str).str.strip()
+        df_elementos_corte['TIPO'] = df_elementos_corte['TIPO'].astype(str).str.strip().str.upper()
+        df_elementos_corte['EST_ESTABLE'] = df_elementos_corte['EST_ESTABLE'].astype(str).str.strip().str.upper()
     else: return None, None, None
         
     if df_lineas is not None:
         if not all(col in df_lineas.columns for col in columnas_esperadas_lineas):
-            print(f"❌ Error: Faltan columnas en {file_lineas}. Se esperan: {columnas_esperadas_lineas}")
+            faltantes_li = [col for col in columnas_esperadas_lineas if col not in df_lineas.columns]
+            print(f"❌ Error: Faltan columnas en {file_lineas}. Se esperan: {columnas_esperadas_lineas}. Faltan: {faltantes_li}")
             return None, None, None
         df_lineas['G3E_FID'] = df_lineas['G3E_FID'].astype(str).str.strip()
         df_lineas['NODO1_ID'] = df_lineas['NODO1_ID'].astype(str).str.strip()
         df_lineas['NODO2_ID'] = df_lineas['NODO2_ID'].astype(str).str.strip()
+        df_lineas['CIRCUITO'] = df_lineas['CIRCUITO'].astype(str).str.strip()
     else: return None, None, None
 
     return df_circuitos, df_elementos_corte, df_lineas
 
-# --- Helper para obtener el otro nodo ---
-def obtener_otro_nodo(row_elemento, nodo_conocido_str, col_nodo1='NODO1_ID', col_nodo2='NODO2_ID'):
-    nodo1_str = str(row_elemento.get(col_nodo1, 'NAN')).upper()
-    nodo2_str = str(row_elemento.get(col_nodo2, 'NAN')).upper()
-    nodo_conocido_str = str(nodo_conocido_str).upper()
-
-    if nodo1_str == nodo_conocido_str:
-        return nodo2_str if nodo2_str != 'NAN' else None
-    elif nodo2_str == nodo_conocido_str:
-        return nodo1_str if nodo1_str != 'NAN' else None
-    return None
-
-# --- Fase 1: Barrido Principal y Recolección de Puntos de Anillo ---
-def barrido_conectividad_circuito_principal(
-    circuito_co_inicial, # CO del interruptor del circuito a barrer
-    df_elementos_corte_global,
-    df_lineas_global,
-    resultados_ec_fase1_lista, # Lista para almacenar ECs encontrados en esta fase
-    resultados_lineas_fase1_lista, # Lista para almacenar Líneas encontradas
-    puntos_potenciales_anillo_lista # Lista para almacenar info de ECs "OPEN"
+def barrido_conectividad_por_circuito(
+    circuito_co_inicial,
+    df_elementos_corte_circuito, # Ya filtrado para el circuito de arranque
+    df_lineas_circuito,          # Ya filtrado para el circuito de arranque
+    resultados_elementos_corte_global_lista,
+    resultados_lineas_global_lista
     ):
+    elementos_arranque = df_elementos_corte_circuito[df_elementos_corte_circuito['CODIGO_OPERATIVO'] == circuito_co_inicial]
+    if elementos_arranque.empty:
+        print(f"ℹ️ Advertencia: No se encontró el elemento de arranque con CODIGO_OPERATIVO '{circuito_co_inicial}' en los elementos del circuito.")
+        return
 
-    elemento_arranque_filas = df_elementos_corte_global[df_elementos_corte_global['CODIGO_OPERATIVO'] == circuito_co_inicial]
-    if elemento_arranque_filas.empty:
-        print(f"ℹ️ Advertencia (Fase 1): No se encontró el elemento de arranque '{circuito_co_inicial}'.")
-        return set(), set() # Devuelve sets vacíos de visitados
-
-    elemento_arranque = elemento_arranque_filas.iloc[0].copy()
+    elemento_arranque = elementos_arranque.iloc[0].copy()
     fid_arranque = str(elemento_arranque['G3E_FID'])
-    tipo_arranque = str(elemento_arranque['TIPO'])
 
     visitados_ec_fids_este_circuito = set()
     visitados_lineas_fids_este_circuito = set()
 
-    # Registrar elemento de arranque
-    ec_dict_arranque = elemento_arranque.to_dict()
-    ec_dict_arranque['Equipo_Padre'] = None
-    ec_dict_arranque['Elementos_Aguas_Arriba'] = circuito_co_inicial
-    ec_dict_arranque['Circuito_Origen_Barrido'] = circuito_co_inicial
-    ec_dict_arranque['Es_Parte_De_Anillo'] = False # Nueva columna
-    resultados_ec_fase1_lista.append(ec_dict_arranque)
+    elemento_arranque_dict = elemento_arranque.to_dict()
+    elemento_arranque_dict['Equipo_Padre'] = None 
+    elemento_arranque_dict['Elementos_Aguas_Arriba'] = circuito_co_inicial
+    elemento_arranque_dict['Circuito_Origen_Barrido'] = circuito_co_inicial
+    elemento_arranque_dict['Nodo_No_Explorado_Anillo'] = pd.NA # Inicializar para todos
+    resultados_elementos_corte_global_lista.append(elemento_arranque_dict)
     visitados_ec_fids_este_circuito.add(fid_arranque)
 
     pila_exploracion = []
-    camino_inicial = [circuito_co_inicial]
-    nodo_arranque_principal = str(elemento_arranque.get('NODO2_ID', 'NAN')).upper() # Inicio por NODO2 como solicitado
+    camino_co_aguas_arriba_para_hijos_de_arranque = [circuito_co_inicial]
 
-    if nodo_arranque_principal != 'NAN':
-        # Stack: (fid_elemento_actual, tipo_elemento_actual, nodo_a_explorar_desde, co_padre_directo, camino_co_hasta_padre)
-        pila_exploracion.append((fid_arranque, tipo_arranque, nodo_arranque_principal, circuito_co_inicial, list(camino_inicial)))
-    else:
-        print(f"⚠️ Advertencia (Fase 1): Elemento de arranque '{circuito_co_inicial}' no tiene NODO2_ID válido.")
-        return visitados_ec_fids_este_circuito, visitados_lineas_fids_este_circuito
-
+    # Añadir nodos del elemento de arranque a la pila
+    # (fid_del_elemento_padre, tipo_del_elemento_padre, nodo_a_explorar, co_ec_padre_directo, camino_co_hasta_padre_directo)
+    if pd.notna(elemento_arranque['NODO1_ID']) and elemento_arranque['NODO1_ID'] != 'nan':
+        pila_exploracion.append((str(elemento_arranque['G3E_FID']), elemento_arranque['TIPO'], str(elemento_arranque['NODO1_ID']), circuito_co_inicial, list(camino_co_aguas_arriba_para_hijos_de_arranque)))
+    if pd.notna(elemento_arranque['NODO2_ID']) and elemento_arranque['NODO2_ID'] != 'nan':
+        pila_exploracion.append((str(elemento_arranque['G3E_FID']), elemento_arranque['TIPO'], str(elemento_arranque['NODO2_ID']), circuito_co_inicial, list(camino_co_aguas_arriba_para_hijos_de_arranque)))
 
     while pila_exploracion:
-        fid_elem_actual, tipo_elem_actual, nodo_actual, co_ec_padre_directo, camino_co_hasta_padre = pila_exploracion.pop()
+        fid_actual, tipo_actual, nodo_actual, co_ec_padre_directo, camino_co_hasta_padre_directo = pila_exploracion.pop()
 
-        # A. Buscar Líneas Conectadas
-        lineas_conectadas = df_lineas_global[
-            (df_lineas_global['NODO1_ID'] == nodo_actual) | (df_lineas_global['NODO2_ID'] == nodo_actual)
+        # Explorar Líneas conectadas al nodo_actual
+        # Usar los dataframes globales para encontrar todas las conexiones posibles
+        lineas_conectadas = df_lineas_circuito[
+            (df_lineas_circuito['NODO1_ID'] == nodo_actual) | (df_lineas_circuito['NODO2_ID'] == nodo_actual)
         ]
-        for _, linea_row in lineas_conectadas.iterrows():
-            linea_fid = str(linea_row['G3E_FID'])
+        for _, linea_conectada_row_original in lineas_conectadas.iterrows():
+            linea_conectada_row = linea_conectada_row_original.copy()
+            linea_fid = str(linea_conectada_row['G3E_FID'])
             if linea_fid not in visitados_lineas_fids_este_circuito:
                 visitados_lineas_fids_este_circuito.add(linea_fid)
-                linea_dict = linea_row.to_dict()
+                linea_dict = linea_conectada_row.to_dict()
                 linea_dict['Equipo_Padre'] = co_ec_padre_directo
-                linea_dict['Elementos_Aguas_Arriba'] = ",".join(camino_co_hasta_padre)
-                linea_dict['Circuito_Origen_Barrido'] = circuito_co_inicial
-                linea_dict['Es_Parte_De_Anillo'] = False
-                resultados_lineas_fase1_lista.append(linea_dict)
+                linea_dict['Elementos_Aguas_Arriba'] = ",".join(camino_co_hasta_padre_directo)
+                linea_dict['Circuito_Origen_Barrido'] = circuito_co_inicial # El circuito que inició ESTE barrido
+                resultados_lineas_global_lista.append(linea_dict)
                 
-                otro_nodo_linea = obtener_otro_nodo(linea_row, nodo_actual)
+                otro_nodo_linea = None
+                if str(linea_conectada_row['NODO1_ID']) == nodo_actual and pd.notna(linea_conectada_row['NODO2_ID']) and str(linea_conectada_row['NODO2_ID']) != 'nan':
+                    otro_nodo_linea = str(linea_conectada_row['NODO2_ID'])
+                elif str(linea_conectada_row['NODO2_ID']) == nodo_actual and pd.notna(linea_conectada_row['NODO1_ID']) and str(linea_conectada_row['NODO1_ID']) != 'nan':
+                    otro_nodo_linea = str(linea_conectada_row['NODO1_ID'])
+                
                 if otro_nodo_linea:
-                    pila_exploracion.append((linea_fid, 'LINEA', otro_nodo_linea, co_ec_padre_directo, list(camino_co_hasta_padre)))
+                    pila_exploracion.append((linea_fid, 'LINEA', otro_nodo_linea, co_ec_padre_directo, list(camino_co_hasta_padre_directo)))
 
-        # B. Buscar Elementos de Corte Conectados
-        ecs_conectados = df_elementos_corte_global[
-            ((df_elementos_corte_global['NODO1_ID'] == nodo_actual) | (df_elementos_corte_global['NODO2_ID'] == nodo_actual)) &
-            (df_elementos_corte_global['G3E_FID'] != fid_elem_actual) # Evitar auto-conexión simple si el EC tiene ambos nodos al nodo_actual
+        # Explorar Elementos de Corte conectados al nodo_actual
+        # Usar los dataframes globales para encontrar todas las conexiones posibles
+        ecs_conectados = df_elementos_corte_circuito[
+            ((df_elementos_corte_circuito['NODO1_ID'] == nodo_actual) | (df_elementos_corte_circuito['NODO2_ID'] == nodo_actual)) &
+            (df_elementos_corte_circuito['G3E_FID'] != fid_actual) # No reconectar al mismo EC desde el que se sale por un nodo
         ]
-        for _, ec_row in ecs_conectados.iterrows():
-            ec_fid = str(ec_row['G3E_FID'])
+        for _, ec_conectado_row_original in ecs_conectados.iterrows():
+            ec_conectado_row = ec_conectado_row_original.copy()
+            ec_fid = str(ec_conectado_row['G3E_FID'])
+            
             if ec_fid not in visitados_ec_fids_este_circuito:
                 visitados_ec_fids_este_circuito.add(ec_fid)
-                ec_dict = ec_row.to_dict()
+                ec_dict = ec_conectado_row.to_dict()
                 ec_dict['Equipo_Padre'] = co_ec_padre_directo
-                ec_dict['Elementos_Aguas_Arriba'] = ",".join(camino_co_hasta_padre)
+                ec_dict['Elementos_Aguas_Arriba'] = ",".join(camino_co_hasta_padre_directo)
                 ec_dict['Circuito_Origen_Barrido'] = circuito_co_inicial
-                ec_dict['Es_Parte_De_Anillo'] = False
-                resultados_ec_fase1_lista.append(ec_dict)
+                ec_dict['Nodo_No_Explorado_Anillo'] = pd.NA # Inicializar
 
-                estado_ec = str(ec_row.get('EST_ESTABLE', 'UNKNOWN')).upper()
-                co_ec_actual = str(ec_row['CODIGO_OPERATIVO'])
-                tipo_ec_actual = str(ec_row['TIPO'])
-
-                if estado_ec == 'CLOSED':
-                    nuevo_camino_co = list(camino_co_hasta_padre) + [co_ec_actual]
-                    # Explorar desde ambos nodos del EC cerrado si son distintos del nodo_actual de llegada
-                    # O, como en tu lógica, desde el "otro" nodo.
-                    otro_nodo_de_ec_cerrado = obtener_otro_nodo(ec_row, nodo_actual)
-                    if otro_nodo_de_ec_cerrado:
-                         pila_exploracion.append((ec_fid, tipo_ec_actual, otro_nodo_de_ec_cerrado, co_ec_actual, nuevo_camino_co))
-                    # Si se quisiera explorar ambos nodos del EC cerrado:
-                    # for nodo_ec_key in ['NODO1_ID', 'NODO2_ID']:
-                    #    nodo_a_explorar_ec = str(ec_row.get(nodo_ec_key, 'NAN')).upper()
-                    #    if nodo_a_explorar_ec != 'NAN':
-                    #        pila_exploracion.append((ec_fid, tipo_ec_actual, nodo_a_explorar_ec, co_ec_actual, nuevo_camino_co))
+                # Determinar el nodo no explorado si el EC está ABIERTO
+                nodo_no_explorado_para_anillo = pd.NA
+                if ec_conectado_row['EST_ESTABLE'] == 'OPEN':
+                    if str(ec_conectado_row['NODO1_ID']) == nodo_actual and pd.notna(ec_conectado_row['NODO2_ID']) and str(ec_conectado_row['NODO2_ID']) != 'nan':
+                        nodo_no_explorado_para_anillo = str(ec_conectado_row['NODO2_ID'])
+                    elif str(ec_conectado_row['NODO2_ID']) == nodo_actual and pd.notna(ec_conectado_row['NODO1_ID']) and str(ec_conectado_row['NODO1_ID']) != 'nan':
+                        nodo_no_explorado_para_anillo = str(ec_conectado_row['NODO1_ID'])
+                    ec_dict['Nodo_No_Explorado_Anillo'] = nodo_no_explorado_para_anillo
                 
-                elif estado_ec == 'OPEN':
-                    nodo_para_explorar_anillo = obtener_otro_nodo(ec_row, nodo_actual)
-                    if nodo_para_explorar_anillo: # Solo si tiene un "otro" nodo válido
-                        puntos_potenciales_anillo_lista.append({
-                            'ec_open_fid': ec_fid,
-                            'ec_open_co': co_ec_actual,
-                            'nodo_explorar_anillo': nodo_para_explorar_anillo,
-                            'circuito_origen_co': circuito_co_inicial,
-                            'camino_co_hasta_open': list(camino_co_hasta_padre) + [co_ec_actual],
-                            'fids_rama_principal_en_este_punto': set(visitados_ec_fids_este_circuito | visitados_lineas_fids_este_circuito) # Copia del estado actual de visitados
-                        })
-    return visitados_ec_fids_este_circuito, visitados_lineas_fids_este_circuito
+                resultados_elementos_corte_global_lista.append(ec_dict)
 
+                if ec_conectado_row['EST_ESTABLE'] == 'CLOSED': # Solo continuar barrido si está cerrado
+                    nuevo_co_ec_padre_para_hijos = str(ec_conectado_row['CODIGO_OPERATIVO'])
+                    nuevo_camino_co_para_hijos = list(camino_co_hasta_padre_directo) + [nuevo_co_ec_padre_para_hijos]
+                    
+                    otro_nodo_ec_para_explorar = pd.NA
+                    # El nodo por el que se continúa es el que NO es 'nodo_actual'
+                    if str(ec_conectado_row['NODO1_ID']) == nodo_actual and pd.notna(ec_conectado_row['NODO2_ID']) and str(ec_conectado_row['NODO2_ID']) != 'nan':
+                        otro_nodo_ec_para_explorar = str(ec_conectado_row['NODO2_ID'])
+                    elif str(ec_conectado_row['NODO2_ID']) == nodo_actual and pd.notna(ec_conectado_row['NODO1_ID']) and str(ec_conectado_row['NODO1_ID']) != 'nan':
+                        otro_nodo_ec_para_explorar = str(ec_conectado_row['NODO1_ID'])
+                    
+                    if pd.notna(otro_nodo_ec_para_explorar):
+                         pila_exploracion.append((ec_fid, ec_conectado_row['TIPO'], otro_nodo_ec_para_explorar, nuevo_co_ec_padre_para_hijos, nuevo_camino_co_para_hijos))
 
-# --- Fase 2: Búsqueda de Caminos de Anillo ---
-def buscar_camino_anillo_dfs(
-    nodo_de_partida_anillo,
-    co_elemento_open, # CO del EC "OPEN" que origina esta búsqueda
-    camino_co_hasta_open, # Lista de COs hasta el EC "OPEN"
-    circuito_origen_principal, # CO del circuito donde se encontró el EC "OPEN"
-    fids_visitados_rama_principal, # Set de G3E_FIDs de la Fase 1 de este circuito
-    df_elementos_corte_global,
-    df_lineas_global,
-    df_circuitos_todos # DataFrame de todos los circuitos válidos
-    ):
-    
-    print(f"    🔎 Buscando anillo desde EC OPEN '{co_elemento_open}' (nodo: {nodo_de_partida_anillo}) del circuito '{circuito_origen_principal}'...")
-    
-    pila_anillo = []
-    # Stack: (fid_elem_actual, tipo_elem_actual, nodo_a_explorar, co_padre_directo_anillo, camino_co_anillo, fids_camino_anillo_actual)
-    # El padre inicial para el camino del anillo es el propio EC OPEN.
-    # El fid_elem_actual y tipo_elem_actual iniciales son los del EC OPEN.
-    ec_open_row = df_elementos_corte_global[df_elementos_corte_global['CODIGO_OPERATIVO'] == co_elemento_open].iloc[0] # Asumimos que existe y es único
-    
-    pila_anillo.append((
-        str(ec_open_row['G3E_FID']), 
-        str(ec_open_row['TIPO']), 
-        nodo_de_partida_anillo, 
-        co_elemento_open, 
-        list(camino_co_hasta_open), # El camino ya incluye al EC OPEN
-        [] # Lista de FIDs de elementos nuevos en este camino de anillo
-    ))
+def barrido_anillos_especifico(
+    co_ec_open_original,
+    nodo_inicio_anillo,
+    df_elementos_corte_global, 
+    df_lineas_global,         
+    df_resultados_ecs_completos 
+):
+    """
+    Realiza un barrido desde el nodo_inicio_anillo de un EC 'OPEN' 
+    para encontrar el primer EC conectado.
+    """
+    pila_exploracion_anillo = []
+    visitados_fids_este_anillo = set() 
+    visitados_fids_este_anillo.add(co_ec_open_original) # No "encontrar" el mismo EC OPEN como anillo
 
-    visitados_fids_este_anillo_sweep = set() # Para evitar ciclos DENTRO de la búsqueda de este anillo específico
-    elementos_nuevos_en_camino_anillo = [] # [{elemento_dict, tipo: 'EC'/'LINEA'}, ...]
+    # (fid_padre, tipo_padre, nodo_a_explorar)
+    pila_exploracion_anillo.append( (None, "NODO_INICIAL_ANILLO", nodo_inicio_anillo) )
 
-    max_profundidad_anillo = 200 # Límite para evitar exploraciones muy largas en redes complejas
-    iteraciones = 0
+    max_iteraciones_anillo = 100 # Límite para evitar bucles infinitos en casos complejos
+    iter_count = 0
 
-    while pila_anillo and iteraciones < max_profundidad_anillo:
-        iteraciones += 1
-        fid_elem_actual_anillo, tipo_elem_actual_anillo, nodo_actual_anillo, co_padre_anillo, camino_co_actual_anillo, fids_path_anillo = pila_anillo.pop()
+    while pila_exploracion_anillo and iter_count < max_iteraciones_anillo:
+        iter_count += 1
+        fid_padre_actual, tipo_padre_actual, nodo_actual = pila_exploracion_anillo.pop()
 
-        if fid_elem_actual_anillo in visitados_fids_este_anillo_sweep and tipo_elem_actual_anillo != 'EC_OPEN_START': # EC_OPEN_START es un pseudo tipo para el primer elemento
-            continue # Ya exploramos este elemento en este intento de anillo
-        if tipo_elem_actual_anillo != 'EC_OPEN_START':
-             visitados_fids_este_anillo_sweep.add(fid_elem_actual_anillo)
+        # 1. Buscar ECs Conectados directamente al nodo_actual
+        ecs_conectados_directo_anillo = df_elementos_corte_global[
+            ((df_elementos_corte_global['NODO1_ID'] == nodo_actual) | (df_elementos_corte_global['NODO2_ID'] == nodo_actual)) &
+            (df_elementos_corte_global['CODIGO_OPERATIVO'] != co_ec_open_original) 
+        ]
+        for _, ec_row in ecs_conectados_directo_anillo.iterrows():
+            co_ec_encontrado = str(ec_row['CODIGO_OPERATIVO'])
+            # ¡EC encontrado!
+            info_ec_encontrado_en_barrido1 = df_resultados_ecs_completos[
+                df_resultados_ecs_completos['CODIGO_OPERATIVO'] == co_ec_encontrado
+            ]
+            if not info_ec_encontrado_en_barrido1.empty:
+                data_ec_encontrado = info_ec_encontrado_en_barrido1.iloc[0]
+                elementos_aguas_arriba_anillo = data_ec_encontrado.get('Elementos_Aguas_Arriba', pd.NA)
+                circuito_origen_anillo = data_ec_encontrado.get('Circuito_Origen_Barrido', pd.NA)
+                return co_ec_encontrado, elementos_aguas_arriba_anillo, circuito_origen_anillo
+            else: # Encontrado en la red pero no en resultados del barrido (raro)
+                return co_ec_encontrado, pd.NA, pd.NA # Retornar al menos el CO
 
-
-        # A. Buscar Líneas Conectadas en el camino del anillo
+        # 2. Si no hay EC directo, buscar Líneas Conectadas al nodo_actual para seguir explorando
         lineas_conectadas_anillo = df_lineas_global[
-            ((df_lineas_global['NODO1_ID'] == nodo_actual_anillo) | (df_lineas_global['NODO2_ID'] == nodo_actual_anillo)) &
-            (~df_lineas_global['G3E_FID'].isin(fids_visitados_rama_principal)) # No volver por la rama principal energizada
+            ((df_lineas_global['NODO1_ID'] == nodo_actual) | (df_lineas_global['NODO2_ID'] == nodo_actual)) 
         ]
-        for _, linea_row_anillo in lineas_conectadas_anillo.iterrows():
-            linea_fid_anillo = str(linea_row_anillo['G3E_FID'])
-            if linea_fid_anillo not in visitados_fids_este_anillo_sweep and linea_fid_anillo not in fids_path_anillo:
-                linea_dict_anillo = linea_row_anillo.to_dict()
-                linea_dict_anillo['Equipo_Padre'] = co_padre_anillo # El padre en el contexto del camino del anillo
-                linea_dict_anillo['Elementos_Aguas_Arriba'] = ",".join(camino_co_actual_anillo)
-                linea_dict_anillo['Circuito_Origen_Barrido'] = circuito_origen_principal # Sigue siendo del circuito original
-                linea_dict_anillo['Es_Parte_De_Anillo'] = True
+        for _, linea_row in lineas_conectadas_anillo.iterrows():
+            linea_fid = str(linea_row['G3E_FID'])
+            if linea_fid not in visitados_fids_este_anillo:
+                visitados_fids_este_anillo.add(linea_fid)
+                otro_nodo_linea = None
+                if str(linea_row['NODO1_ID']) == nodo_actual and pd.notna(linea_row['NODO2_ID']) and str(linea_row['NODO2_ID']) != 'nan':
+                    otro_nodo_linea = str(linea_row['NODO2_ID'])
+                elif str(linea_row['NODO2_ID']) == nodo_actual and pd.notna(linea_row['NODO1_ID']) and str(linea_row['NODO1_ID']) != 'nan':
+                    otro_nodo_linea = str(linea_row['NODO1_ID'])
                 
-                current_path_elements = elementos_nuevos_en_camino_anillo + [{'data': linea_dict_anillo, 'tipo_elem': 'LINEA'}]
-                
-                otro_nodo_linea_anillo = obtener_otro_nodo(linea_row_anillo, nodo_actual_anillo)
-                if otro_nodo_linea_anillo:
-                    pila_anillo.append((
-                        linea_fid_anillo, 'LINEA', otro_nodo_linea_anillo, 
-                        co_padre_anillo, # El padre no cambia al pasar por una línea
-                        list(camino_co_actual_anillo),
-                        fids_path_anillo + [linea_fid_anillo]
-                    ))
-                    # Temporalmente añadir a elementos_nuevos_en_camino_anillo para no perderlo si este no es el final
-                    # Se confirmará si es un camino válido al final de la función si se encuentra un cierre.
-                    # Esto se complica, es mejor construir la lista de elementos solo cuando se confirma el anillo.
-                    # Por ahora, la función solo retornará el punto de cierre.
-                    # La adición de elementos intermedios al DF global se manejará después.
-
-
-        # B. Buscar Elementos de Corte Conectados en el camino del anillo
-        ecs_conectados_anillo = df_elementos_corte_global[
-             (((df_elementos_corte_global['NODO1_ID'] == nodo_actual_anillo) | (df_elementos_corte_global['NODO2_ID'] == nodo_actual_anillo))) &
-             (df_elementos_corte_global['G3E_FID'] != fid_elem_actual_anillo) & # No el mismo del que partimos en este paso
-             (~df_elementos_corte_global['G3E_FID'].isin(fids_path_anillo)) # No parte del camino actual de este anillo
+                if otro_nodo_linea:
+                    pila_exploracion_anillo.append((linea_fid, 'LINEA_ANILLO', otro_nodo_linea))
+        
+        # 3. Si no hay línea directa, buscar ECs CERRADOS para continuar la exploración (si el EC directo no fue el objetivo)
+        # Esta parte es para atravesar ECs cerrados en el camino hacia el EC que forma el anillo
+        ecs_conectados_para_atravesar = df_elementos_corte_global[
+            ((df_elementos_corte_global['NODO1_ID'] == nodo_actual) | (df_elementos_corte_global['NODO2_ID'] == nodo_actual)) &
+            (df_elementos_corte_global['CODIGO_OPERATIVO'] != co_ec_open_original) &
+            (df_elementos_corte_global['EST_ESTABLE'] == 'CLOSED') # Solo atravesar cerrados
         ]
-        for _, ec_row_anillo in ecs_conectados_anillo.iterrows():
-            ec_fid_anillo = str(ec_row_anillo['G3E_FID'])
-            ec_co_anillo = str(ec_row_anillo['CODIGO_OPERATIVO'])
-            ec_circuito_nativo = str(ec_row_anillo.get('CIRCUITO', 'UNKNOWN_CIRCUIT')).upper() # Circuito al que pertenece este EC
-
-            # Condición 1: Cierra anillo con la rama principal del mismo circuito
-            if ec_fid_anillo in fids_visitados_rama_principal:
-                print(f"    ✅ Anillo INTERNO detectado: EC OPEN '{co_elemento_open}' cierra con '{ec_co_anillo}' (del mismo circuito '{circuito_origen_principal}')")
-                # Aquí se deberían registrar los elementos intermedios de este camino de anillo
-                return {'tipo': 'INTERNO', 'circuito_cierre_co': circuito_origen_principal, 'elemento_cierre_co': ec_co_anillo, 'elementos_camino': fids_path_anillo + [ec_fid_anillo] }
-
-            # Condición 2: Cierra anillo con OTRO circuito
-            if ec_circuito_nativo != circuito_origen_principal and \
-               ec_circuito_nativo in df_circuitos_todos['Circuito'].unique():
-                print(f"    ✅ Anillo EXTERNO detectado: EC OPEN '{co_elemento_open}' (de Cto '{circuito_origen_principal}') cierra con '{ec_co_anillo}' (del Cto '{ec_circuito_nativo}')")
-                return {'tipo': 'EXTERNO', 'circuito_cierre_co': ec_circuito_nativo, 'elemento_cierre_co': ec_co_anillo, 'elementos_camino': fids_path_anillo + [ec_fid_anillo]}
-
-            # Si no es un cierre y no ha sido visitado en ESTE barrido de anillo, y está CERRADO, continuar explorando
-            if ec_fid_anillo not in visitados_fids_este_anillo_sweep:
-                estado_ec_anillo = str(ec_row_anillo.get('EST_ESTABLE', 'UNKNOWN')).upper()
-                if estado_ec_anillo == 'CLOSED':
-                    # visitados_fids_este_anillo_sweep.add(ec_fid_anillo) # Marcar como visitado para este camino
-                    nuevo_camino_co_anillo = list(camino_co_actual_anillo) + [ec_co_anillo]
-                    otro_nodo_ec_anillo = obtener_otro_nodo(ec_row_anillo, nodo_actual_anillo)
-                    if otro_nodo_ec_anillo:
-                        pila_anillo.append((
-                            ec_fid_anillo, str(ec_row_anillo['TIPO']), otro_nodo_ec_anillo,
-                            ec_co_anillo, # Nuevo padre en el camino del anillo
-                            nuevo_camino_co_anillo,
-                            fids_path_anillo + [ec_fid_anillo]
-                        ))
+        for _, ec_row_atravesar in ecs_conectados_para_atravesar.iterrows():
+            ec_fid_atravesar = str(ec_row_atravesar['G3E_FID'])
+            if ec_fid_atravesar not in visitados_fids_este_anillo:
+                visitados_fids_este_anillo.add(ec_fid_atravesar)
+                otro_nodo_ec_atravesar = None
+                if str(ec_row_atravesar['NODO1_ID']) == nodo_actual and pd.notna(ec_row_atravesar['NODO2_ID']) and str(ec_row_atravesar['NODO2_ID']) != 'nan':
+                    otro_nodo_ec_atravesar = str(ec_row_atravesar['NODO2_ID'])
+                elif str(ec_row_atravesar['NODO2_ID']) == nodo_actual and pd.notna(ec_row_atravesar['NODO1_ID']) and str(ec_row_atravesar['NODO1_ID']) != 'nan':
+                    otro_nodo_ec_atravesar = str(ec_row_atravesar['NODO1_ID'])
+                
+                if otro_nodo_ec_atravesar:
+                    pila_exploracion_anillo.append((ec_fid_atravesar, ec_row_atravesar['TIPO'], otro_nodo_ec_atravesar))
     
-    print(f"    ℹ️ No se encontró cierre de anillo claro para EC OPEN '{co_elemento_open}' desde nodo {nodo_de_partida_anillo} (profundidad máx alcanzada o sin camino).")
-    return None # No se encontró cierre o se alcanzó límite
+    if iter_count >= max_iteraciones_anillo:
+        print(f"⚠️ Advertencia: Barrido de anillo para {co_ec_open_original} desde nodo {nodo_inicio_anillo} alcanzó el límite de iteraciones.")
+    return pd.NA, pd.NA, pd.NA
 
-# --- Orquestador Principal ---
-def generar_dfs_resultados_con_anillos(df_circuitos, df_elementos_corte_global, df_lineas_global):
+
+def generar_dfs_resultados_finales(df_circuitos, df_elementos_corte_global, df_lineas_global, verbose=False):
     if df_circuitos is None or df_elementos_corte_global is None or df_lineas_global is None:
+        print("❌ Error en la carga de datos inicial. No se puede continuar.")
         return None, None
         
-    resultados_ecs_final_lista = []
-    resultados_lineas_final_lista = []
-    
-    mapa_fids_ec_info_anillo = {} # Para actualizar ECs OPEN con info del anillo
+    resultados_elementos_corte_acumulados_lista = []
+    resultados_lineas_acumulados_lista = []
 
+    # --- PRIMER BARRIDO DE CONECTIVIDAD ---
+    print("\n🔄 Iniciando primer barrido de conectividad...")
     for _, row_circuito in df_circuitos.iterrows():
-        circuito_co_actual = str(row_circuito['Circuito']).upper()
-        print(f"🔄 Procesando Fase 1 para circuito: {circuito_co_actual}...")
+        circuito_co_inicial = str(row_circuito['Circuito'])
+        print(f"  Procesando circuito (barrido inicial): {circuito_co_inicial}...")
         
-        ecs_fase1_circuito_actual = []
-        lineas_fase1_circuito_actual = []
-        puntos_potenciales_anillo_circuito_actual = []
+        if circuito_co_inicial=='109-28-':
+            print('109-28')
+        # Filtrar elementos y líneas que pertenecen al circuito de arranque para el inicio del barrido
+        df_ecs_circuito_arranque = df_elementos_corte_global[df_elementos_corte_global['CIRCUITO'] == circuito_co_inicial].copy()
+        df_lins_circuito_arranque = df_lineas_global[df_lineas_global['CIRCUITO'] == circuito_co_inicial].copy()
 
-        # Ejecutar Fase 1
-        fids_ec_visitados_fase1, fids_lineas_visitadas_fase1 = barrido_conectividad_circuito_principal(
-            circuito_co_actual,
-            df_elementos_corte_global,
-            df_lineas_global,
-            ecs_fase1_circuito_actual,
-            lineas_fase1_circuito_actual,
-            puntos_potenciales_anillo_circuito_actual
+        barrido_conectividad_por_circuito(
+            circuito_co_inicial,
+            df_ecs_circuito_arranque,
+            df_lins_circuito_arranque,
+            resultados_elementos_corte_acumulados_lista,
+            resultados_lineas_acumulados_lista
         )
-        
-        resultados_ecs_final_lista.extend(ecs_fase1_circuito_actual)
-        resultados_lineas_final_lista.extend(lineas_fase1_circuito_actual)
+    
+    df_final_elementos_corte = pd.DataFrame(resultados_elementos_corte_acumulados_lista)
+    df_final_lineas = pd.DataFrame(resultados_lineas_acumulados_lista)
 
-        print(f"🔩 Procesando Fase 2 (Anillos) para circuito: {circuito_co_actual}...")
-        fids_globales_rama_principal_actual = fids_ec_visitados_fase1 | fids_lineas_visitadas_fase1
+    # Inicializar columnas para información de anillos antes de procesarlos
+    if not df_final_elementos_corte.empty:
+        df_final_elementos_corte['Equipo_anillo'] = pd.NA
+        df_final_elementos_corte['Elementos_Aguas_Arriba_anillo'] = pd.NA
+        df_final_elementos_corte['Circuito_anillo'] = pd.NA
+    else: # Si no hay elementos de corte, no hay nada que hacer para anillos
+        return df_final_elementos_corte, df_final_lineas
 
-        for punto_anillo in puntos_potenciales_anillo_circuito_actual:
-            if punto_anillo['circuito_origen_co'] == circuito_co_actual: # Asegurar que es del circuito actual
-                info_cierre = buscar_camino_anillo_dfs(
-                    punto_anillo['nodo_explorar_anillo'],
-                    punto_anillo['ec_open_co'],
-                    punto_anillo['camino_co_hasta_open'],
-                    circuito_co_actual,
-                    punto_anillo['fids_rama_principal_en_este_punto'], # Usar el set de visitados en el momento que se encontró el OPEN
-                    df_elementos_corte_global,
-                    df_lineas_global,
-                    df_circuitos # Pasar todos los circuitos para validación
-                )
-                if info_cierre:
-                    mapa_fids_ec_info_anillo[punto_anillo['ec_open_fid']] = {
-                        'Anillo_Tipo': info_cierre['tipo'],
-                        'Anillo_Con_Circuito_CO': info_cierre['circuito_cierre_co'],
-                        'Anillo_Con_Elemento_CO': info_cierre['elemento_cierre_co'],
-                        # 'Anillo_Camino_Elementos_FIDs': info_cierre['elementos_camino'] # Podríamos guardar esto si es necesario
-                    }
-                    # Aquí podríamos añadir los elementos del 'elementos_camino' a las listas globales de resultados
-                    # marcándolos como 'Es_Parte_De_Anillo' = True, pero esto requiere más lógica
-                    # para construir su 'Equipo_Padre' y 'Elementos_Aguas_Arriba' en el contexto del camino del anillo.
-                    # Por simplicidad, por ahora solo se marca el EC OPEN.
 
-    df_final_elementos_corte = pd.DataFrame(resultados_ecs_final_lista)
-    df_final_lineas = pd.DataFrame(resultados_lineas_final_lista)
+    # --- SEGUNDO BARRIDO (ANÁLISIS DE ANILLOS PARA ECs 'OPEN') ---
+    print("\n🔄 Iniciando análisis de anillos para elementos 'OPEN'...")
+    if not df_final_elementos_corte.empty:
+        ecs_open_para_anillo = df_final_elementos_corte[
+            (df_final_elementos_corte['EST_ESTABLE'] == 'OPEN') &
+            (df_final_elementos_corte['Nodo_No_Explorado_Anillo'].notna())
+        ].copy()
 
-    # Añadir información de anillos a los ECs OPEN
-    if not df_final_elementos_corte.empty and mapa_fids_ec_info_anillo:
-        df_final_elementos_corte['Anillo_Tipo'] = df_final_elementos_corte['G3E_FID'].map(
-            lambda fid: mapa_fids_ec_info_anillo.get(fid, {}).get('Anillo_Tipo')
-        )
-        df_final_elementos_corte['Anillo_Con_Circuito_CO'] = df_final_elementos_corte['G3E_FID'].map(
-            lambda fid: mapa_fids_ec_info_anillo.get(fid, {}).get('Anillo_Con_Circuito_CO')
-        )
-        df_final_elementos_corte['Anillo_Con_Elemento_CO'] = df_final_elementos_corte['G3E_FID'].map(
-            lambda fid: mapa_fids_ec_info_anillo.get(fid, {}).get('Anillo_Con_Elemento_CO')
-        )
-
-    # Limpieza de duplicados (puede ser necesario si elementos son añadidos de múltiples formas)
-    # ... (lógica de drop_duplicates si es necesaria) ...
+        if verbose: print(f"  Se encontraron {len(ecs_open_para_anillo)} ECs 'OPEN' con nodos no explorados para análisis de anillo.")
+        for index, row_ec_open in ecs_open_para_anillo.iterrows():
+            co_ec_open = row_ec_open['CODIGO_OPERATIVO']
+            nodo_explorar_anillo = row_ec_open['Nodo_No_Explorado_Anillo']
             
+            if verbose: print(f"    Analizando anillo para EC 'OPEN': {co_ec_open} desde nodo {nodo_explorar_anillo}...")
+            
+            equipo_an, eaa_an, circ_an = barrido_anillos_especifico(
+                co_ec_open,
+                nodo_explorar_anillo,
+                df_elementos_corte_global, 
+                df_lineas_global,          
+                df_final_elementos_corte # Pasar el DF actual para consulta
+            )
+            
+            if pd.notna(equipo_an):
+                if verbose: print(f"      Anillo encontrado para {co_ec_open}: Equipo={equipo_an}, Circuito_Anillo={circ_an}")
+                df_final_elementos_corte.loc[index, 'Equipo_anillo'] = equipo_an
+                df_final_elementos_corte.loc[index, 'Elementos_Aguas_Arriba_anillo'] = eaa_an
+                df_final_elementos_corte.loc[index, 'Circuito_anillo'] = circ_an
+            else:
+                if verbose: print(f"      No se encontró conexión de anillo definida para {co_ec_open} desde nodo {nodo_explorar_anillo}.")
+
+
+    # Eliminar duplicados después de todos los procesamientos
+    if not df_final_elementos_corte.empty:
+        cols_subset_ec = ['G3E_FID', 'Circuito_Origen_Barrido', 'Equipo_Padre', 'Elementos_Aguas_Arriba']
+        cols_subset_ec_existentes = [col for col in cols_subset_ec if col in df_final_elementos_corte.columns]
+        df_final_elementos_corte = df_final_elementos_corte.drop_duplicates(subset=cols_subset_ec_existentes, keep='first')
+    
+    if not df_final_lineas.empty:
+        cols_subset_li = ['G3E_FID', 'Circuito_Origen_Barrido', 'Equipo_Padre', 'Elementos_Aguas_Arriba']
+        cols_subset_li_existentes = [col for col in cols_subset_li if col in df_final_lineas.columns]
+        df_final_lineas = df_final_lineas.drop_duplicates(subset=cols_subset_li_existentes, keep='first')
+        
     return df_final_elementos_corte, df_final_lineas
 
 
-# --- Bloque Principal de Ejecución ---
+# --- Inicio de la ejecución ---
 if __name__ == "__main__":
     archivo_circuitos = "Data/circuitos.csv"
     archivo_elementos_corte = "Data/elementos_corte.csv"
     archivo_lineas = "Data/Lineas.csv" 
 
     print("🔌 Iniciando proceso de barrido de conectividad eléctrica...")
-    df_circuitos_main, df_ecs_main, df_lins_main = cargar_datos(
-        archivo_circuitos, archivo_elementos_corte, archivo_lineas
-    )
+    
+    df_circuitos, df_ecs, df_lins = cargar_datos(archivo_circuitos, archivo_elementos_corte, archivo_lineas)
 
-    if df_circuitos_main is not None and df_ecs_main is not None and df_lins_main is not None:
+    if df_circuitos is not None and df_ecs is not None and df_lins is not None:
         print("✅ Datos cargados exitosamente.")
         
-        df_resultados_ecs, df_resultados_lins = generar_dfs_resultados_con_anillos(
-            df_circuitos_main, df_ecs_main, df_lins_main
-        )
+        df_resultados_ecs, df_resultados_lins = generar_dfs_resultados_finales(df_circuitos, df_ecs, df_lins)
 
-        if df_resultados_ecs is not None: # df_resultados_lins puede estar vacío
-            print("\n🎉 ¡Barrido con detección de anillos completado!")
+        if df_resultados_ecs is not None and df_resultados_lins is not None:
+            print("\n🎉 ¡Barridos completados (incluyendo análisis de anillos)!")
             
             print("\n--- Resultados: Elementos de Corte (primeras filas) ---")
             if not df_resultados_ecs.empty:
-                pd.set_option('display.max_columns', None)
-                pd.set_option('display.width', 1000)
-                print(df_resultados_ecs.head())
-                # df_resultados_ecs.to_excel("resultados_elementos_corte_con_anillos.xlsx", index=False)
-                # print("\nResultados de ECs guardados en 'resultados_elementos_corte_con_anillos.xlsx'")
+                # Mostrar columnas relevantes para anillos si existen
+                cols_to_show_ecs = ['CODIGO_OPERATIVO', 'EST_ESTABLE', 'Equipo_Padre', 'Circuito_Origen_Barrido', 'Nodo_No_Explorado_Anillo', 'Equipo_anillo', 'Circuito_anillo']
+                cols_exist_ecs = [col for col in cols_to_show_ecs if col in df_resultados_ecs.columns]
+                print(df_resultados_ecs[cols_exist_ecs].head())
+                # df_resultados_ecs.to_excel("resultados_elementos_corte_final_con_anillos.xlsx", index=False)
+                # print("\nResultados de elementos de corte guardados en 'resultados_elementos_corte_final_con_anillos.xlsx'")
             else:
                 print("No se encontraron resultados para elementos de corte.")
 
             print("\n--- Resultados: Líneas (primeras filas) ---")
-            if df_resultados_lins is not None and not df_resultados_lins.empty :
+            if not df_resultados_lins.empty:
                 print(df_resultados_lins.head())
-                # df_resultados_lins.to_excel("resultados_lineas_con_anillos.xlsx", index=False)
-                # print("\nResultados de líneas guardados en 'resultados_lineas_con_anillos.xlsx'")
+                # df_resultados_lins.to_excel("resultados_lineas_final.xlsx", index=False)
+                # print("\nResultados de líneas guardados en 'resultados_lineas_final.xlsx'")
             else:
-                print("No se encontraron resultados para líneas, o el DataFrame es None.")
+                print("No se encontraron resultados para líneas.")
 
-            # ---- SECCIÓN PARA GENERAR GRAFOS (la llamada a generar_grafo_circuito no cambia) ----
+            # ---- SECCIÓN PARA GENERAR GRAFOS ----
             if not df_resultados_ecs.empty:
-                print("\n📊 Iniciando generación de grafos...")
-                output_folder_grafos = "grafos_circuitos_con_anillos" 
+                print("\n📊 Iniciando generación de grafos para elementos de corte por circuito...")
+                output_folder_grafos = "grafos_circuitos_ecs" 
+
                 if 'Circuito_Origen_Barrido' in df_resultados_ecs.columns:
-                    circuitos_procesados_para_grafo = df_resultados_ecs['Circuito_Origen_Barrido'].unique()
-                    for c_co in circuitos_procesados_para_grafo:
-                        df_grafo_actual = df_resultados_ecs[df_resultados_ecs['Circuito_Origen_Barrido'] == c_co].copy()
-                        # Aquí también se deberían pasar las líneas del circuito actual si el grafo las va a usar.
-                        # Por ahora, la función de grafo solo usa df_resultados_ecs.
-                        # Y también los elementos que forman el camino del anillo.
-                        # Esta parte requiere que generar_grafo_circuito pueda manejar la info de anillos.
-                        generar_grafo_circuito( # De visualizacion_grafos.py
-                            df_datos_circuito_ecs=df_grafo_actual, # Pasar ECs
-                            # df_datos_lineas=df_resultados_lins[df_resultados_lins['Circuito_Origen_Barrido'] == c_co].copy(), # Pasar Líneas (si es necesario)
-                            circuito_co_origen=c_co,
-                            output_folder=output_folder_grafos
-                            # ... otros parámetros de estilo ...
-                        )
+                    circuitos_con_resultados = df_resultados_ecs['Circuito_Origen_Barrido'].unique()
+                    
+                    for circuito_actual_co in circuitos_con_resultados:
+                        if pd.isna(circuito_actual_co): continue # Omitir si el circuito origen es NaN
+                        df_circuito_especifico_ecs = df_resultados_ecs[
+                            df_resultados_ecs['Circuito_Origen_Barrido'] == circuito_actual_co
+                        ].copy()
+
+                        if not df_circuito_especifico_ecs.empty:
+                            generar_grafo_circuito(
+                                df_datos_circuito=df_circuito_especifico_ecs,
+                                circuito_co_origen=circuito_actual_co,
+                                output_folder=output_folder_grafos,
+                                # --- Parámetros de personalización ---
+                                font_size=8,
+                                line_thickness=0.8,
+                                node_width=1.9,    
+                                node_height=0.5,   
+                                rankdir='TB',
+                                default_node_color='lightsteelblue',
+                                interruptor_principal_color='gold',
+                                estado_closed_color='mediumseagreen', 
+                                estado_open_color='tomato',        
+                                edge_color='dimgray',
+                                font_name='Helvetica',
+                                # Nuevos colores para anillos
+                                anillo_interno_color='blue',
+                                anillo_externo_color='red',
+                                circuito_externo_node_color='lightpink'
+                            )
+                        else:
+                            print(f"    ℹ️ No hay datos de elementos de corte para el circuito {circuito_actual_co} para generar grafo.")
+                else:
+                    print("    ⚠️ No se encontró la columna 'Circuito_Origen_Barrido' en los resultados de elementos de corte.")
+            # ---- FIN DE LA SECCIÓN DE GRAFOS ----
         else:
             print("⚠️ No se pudieron generar los DataFrames de resultados del barrido.")
     else:
