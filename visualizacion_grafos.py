@@ -12,7 +12,8 @@ import pandas as pd
 def generar_grafo_circuito(
     df_datos_circuito,
     circuito_co_origen, 
-    output_folder,
+    output_folder,    
+    # --- Parámetros de personalización ---
     font_size=10,
     line_thickness=1.0,
     node_width=2.0, 
@@ -24,6 +25,7 @@ def generar_grafo_circuito(
     estado_open_color='tomato',
     edge_color='gray30',
     font_name='Arial',
+    # Colores para anillos
     anillo_interno_color='blue',      # Nuevo
     anillo_externo_color='darkorange', # Nuevo (era red, cambio para diferenciar de open)
     circuito_externo_node_color='lightpink' # Nuevo

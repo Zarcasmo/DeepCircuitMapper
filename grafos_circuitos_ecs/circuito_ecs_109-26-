@@ -1,0 +1,63 @@
+// Diagrama Unifilar del Circuito 109-26- - Elementos de Corte
+digraph Grafo_Circuito_109_26_ {
+	nodesep=0.5 overlap=false rankdir=TB ranksep=0.8 splines=ortho
+	node [fixedsize=true fontname=Arial fontsize=10 height=0.6 style=filled width=2.0]
+	edge [arrowsize=0.7 color=gray30 penwidth=1.0]
+	"C-0009" [label="C-0009" fillcolor=mediumseagreen shape=ellipse]
+	"S-1474" [label="S-1474" fillcolor=mediumseagreen shape=diamond]
+	"S-2469" [label="S-2469" fillcolor=mediumseagreen shape=diamond]
+	"109-26-" [label="109-26-" fillcolor=gold shape=doubleoctagon]
+	"S-908" [label="S-908" fillcolor=mediumseagreen shape=diamond]
+	"S-1358" [label="S-1358" fillcolor=mediumseagreen shape=diamond]
+	"S-1669" [label="S-1669" fillcolor=mediumseagreen shape=diamond]
+	"S-2527" [label="S-2527" fillcolor=mediumseagreen shape=diamond]
+	"C-0111" [label="C-0111" fillcolor=mediumseagreen shape=ellipse]
+	"C-1163" [label="C-1163" fillcolor=mediumseagreen shape=ellipse]
+	"S-1281" [label="S-1281" fillcolor=mediumseagreen shape=diamond]
+	"S-2468" [label="S-2468" fillcolor=mediumseagreen shape=diamond]
+	"S-1648" [label="S-1648" fillcolor=mediumseagreen shape=diamond]
+	"C-0056" [label="C-0056" fillcolor=mediumseagreen shape=ellipse]
+	"S-355" [label="S-355" fillcolor=mediumseagreen shape=diamond]
+	"S-1744" [label="S-1744" fillcolor=mediumseagreen shape=diamond]
+	"C-0689" [label="C-0689" fillcolor=mediumseagreen shape=ellipse]
+	"C-0970" [label="C-0970" fillcolor=tomato shape=ellipse]
+	"R-230" [label="R-230" fillcolor=mediumseagreen shape=octagon]
+	"S-108" [label="S-108" fillcolor=mediumseagreen shape=diamond]
+	"C-0971" [label="C-0971" fillcolor=mediumseagreen shape=ellipse]
+	"C-0969" [label="C-0969" fillcolor=mediumseagreen shape=ellipse]
+	"C-0167" [label="C-0167" fillcolor=mediumseagreen shape=ellipse]
+	"R-039" [label="R-039" fillcolor=mediumseagreen shape=octagon]
+	"S-108A" [label="S-108A" fillcolor=tomato shape=diamond]
+	"S-1932" [label="S-1932" fillcolor=mediumseagreen shape=diamond]
+	"S-108C" [label="S-108C" fillcolor=mediumseagreen shape=diamond]
+	"109-26-" -> "C-0056"
+	"C-0056" -> "C-0689"
+	"C-0689" -> "C-0111"
+	"C-0111" -> "S-2469"
+	"C-0111" -> "S-2468"
+	"C-0111" -> "C-0970"
+	"C-0111" -> "C-0969"
+	"C-0969" -> "R-230"
+	"R-230" -> "C-0971"
+	"C-0971" -> "C-1163"
+	"C-1163" -> "S-1358"
+	"C-1163" -> "S-355"
+	"S-355" -> "S-1744"
+	"S-355" -> "S-1648"
+	"C-1163" -> "R-039"
+	"R-039" -> "C-0167"
+	"C-0167" -> "S-1474"
+	"S-1474" -> "S-1932"
+	"C-0167" -> "S-108"
+	"S-108" -> "S-108C"
+	"S-108" -> "S-108A"
+	"C-0167" -> "S-1281"
+	"S-1281" -> "S-908"
+	"S-1281" -> "S-2527"
+	"S-1281" -> "C-0009"
+	"C-0111" -> "S-1669"
+	"C-0970" -> "C-0971" [arrowhead=normal color=blue constraint=false style=dashed]
+	ext_circ_113_23_ [label="Circuito:
+113-23-" color=darkorange fillcolor=lightpink shape=box style="filled,dashed"]
+	"S-108A" -> ext_circ_113_23_ [arrowhead=normal color=darkorange constraint=false style=dashed]
+}

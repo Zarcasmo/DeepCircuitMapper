@@ -1,0 +1,75 @@
+// Diagrama Unifilar del Circuito 208-22- - Elementos de Corte
+digraph Grafo_Circuito_208_22_ {
+	nodesep=0.5 overlap=false rankdir=TB ranksep=0.8 splines=ortho
+	node [fixedsize=true fontname=Arial fontsize=10 height=0.6 style=filled width=2.0]
+	edge [arrowsize=0.7 color=gray30 penwidth=1.0]
+	"S-1621" [label="S-1621" fillcolor=mediumseagreen shape=diamond]
+	"S-1640" [label="S-1640" fillcolor=mediumseagreen shape=diamond]
+	"C-0457" [label="C-0457" fillcolor=mediumseagreen shape=ellipse]
+	"S-2499" [label="S-2499" fillcolor=mediumseagreen shape=diamond]
+	"R-072" [label="R-072" fillcolor=mediumseagreen shape=octagon]
+	"208-22-" [label="208-22-" fillcolor=gold shape=doubleoctagon]
+	"S-1606" [label="S-1606" fillcolor=mediumseagreen shape=diamond]
+	"C-1127" [label="C-1127" fillcolor=mediumseagreen shape=ellipse]
+	"S-2291" [label="S-2291" fillcolor=mediumseagreen shape=diamond]
+	"S-1340" [label="S-1340" fillcolor=mediumseagreen shape=diamond]
+	"S-2314" [label="S-2314" fillcolor=mediumseagreen shape=diamond]
+	"S-2326" [label="S-2326" fillcolor=mediumseagreen shape=diamond]
+	"C-0456" [label="C-0456" fillcolor=mediumseagreen shape=ellipse]
+	"R-130" [label="R-130" fillcolor=mediumseagreen shape=octagon]
+	"C-0458" [label="C-0458" fillcolor=mediumseagreen shape=ellipse]
+	"C-0388" [label="C-0388" fillcolor=mediumseagreen shape=ellipse]
+	"S-1627" [label="S-1627" fillcolor=mediumseagreen shape=diamond]
+	"C-1138" [label="C-1138" fillcolor=mediumseagreen shape=ellipse]
+	"C-0763" [label="C-0763" fillcolor=tomato shape=ellipse]
+	"S-992" [label="S-992" fillcolor=mediumseagreen shape=diamond]
+	"S-2498" [label="S-2498" fillcolor=mediumseagreen shape=diamond]
+	"C-0387" [label="C-0387" fillcolor=mediumseagreen shape=ellipse]
+	"S-1619" [label="S-1619" fillcolor=mediumseagreen shape=diamond]
+	"C-0764" [label="C-0764" fillcolor=mediumseagreen shape=ellipse]
+	"S-2408" [label="S-2408" fillcolor=mediumseagreen shape=diamond]
+	"S-2101" [label="S-2101" fillcolor=mediumseagreen shape=diamond]
+	"S-2455" [label="S-2455" fillcolor=mediumseagreen shape=diamond]
+	"C-0677" [label="C-0677" fillcolor=mediumseagreen shape=ellipse]
+	"C-0762" [label="C-0762" fillcolor=mediumseagreen shape=ellipse]
+	"S-1605" [label="S-1605" fillcolor=mediumseagreen shape=diamond]
+	"C-0188" [label="C-0188" fillcolor=mediumseagreen shape=ellipse]
+	"S-1038" [label="S-1038" fillcolor=mediumseagreen shape=diamond]
+	"C-0386" [label="C-0386" fillcolor=tomato shape=ellipse]
+	"S-838" [label="S-838" fillcolor=mediumseagreen shape=diamond]
+	"208-22-" -> "C-0188"
+	"C-0188" -> "S-1340"
+	"C-0188" -> "S-1038"
+	"C-0188" -> "S-1619"
+	"C-0188" -> "C-0456"
+	"C-0456" -> "C-0387"
+	"C-0456" -> "C-0386"
+	"C-0387" -> "R-130"
+	"R-130" -> "C-0388"
+	"C-0388" -> "C-0457"
+	"C-0457" -> "C-0458"
+	"C-0458" -> "S-2101"
+	"S-2101" -> "C-1127"
+	"S-2101" -> "S-992"
+	"S-2101" -> "S-2499"
+	"S-2101" -> "S-2498"
+	"C-0456" -> "S-2408"
+	"C-0456" -> "S-1621"
+	"C-0456" -> "C-0677"
+	"C-0677" -> "S-2314"
+	"S-2314" -> "S-2291"
+	"C-0677" -> "C-0763"
+	"C-0677" -> "C-0762"
+	"C-0762" -> "R-072"
+	"R-072" -> "C-0764"
+	"C-0764" -> "S-1627"
+	"C-0764" -> "S-838"
+	"S-838" -> "S-1605"
+	"S-838" -> "S-1606"
+	"S-1606" -> "S-1640"
+	"S-1606" -> "S-2326"
+	"S-1606" -> "S-2455"
+	"S-1606" -> "C-1138"
+	"C-0386" -> "C-0457" [arrowhead=normal color=blue constraint=false style=dashed]
+	"C-0763" -> "C-0764" [arrowhead=normal color=blue constraint=false style=dashed]
+}

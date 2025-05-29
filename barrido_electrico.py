@@ -2,64 +2,10 @@ import pandas as pd
 
 # ---- Importar dependencias ----
 from visualizacion_grafos import generar_grafo_circuito
+from Data_process import cargar_datos
 # ------------------------------------
-
-def cargar_datos(file_circuitos, file_elementos_corte, file_lineas):
-    """
-    Carga los datos desde los archivos Excel especificados.
-    Convierte las columnas de NODO_ID, G3E_FID, CODIGO_OPERATIVO y Circuito a string 
-    y elimina espacios en blanco al inicio/final para consistencia.
-    """
-    try:
-        df_circuitos = pd.read_csv(file_circuitos, delimiter=";")
-        df_elementos_corte = pd.read_csv(file_elementos_corte, delimiter=";")
-        df_lineas = pd.read_csv(file_lineas, delimiter=";")
-    except FileNotFoundError as e:
-        print(f"❌ Error: Archivo no encontrado - {e.filename}")
-        return None, None, None
-    except Exception as e:
-        print(f"❌ Error al leer los archivos CSV: {e}")
-        return None, None, None
-
-    columnas_esperadas_circuitos = ["Circuito"]
-    # Asegúrate de que 'TIPO' y 'EST_ESTABLE' estén si las usas directamente de df_elementos_corte
-    columnas_esperadas_elementos_corte = ["G3E_FID", "NODO1_ID", "NODO2_ID", "CODIGO_OPERATIVO", "CIRCUITO", "TIPO", "EST_ESTABLE"]
-    columnas_esperadas_lineas = ["G3E_FID", "NODO1_ID", "NODO2_ID", "CIRCUITO"]
-
-
-    if df_circuitos is not None:
-        if not all(col in df_circuitos.columns for col in columnas_esperadas_circuitos):
-            print(f"❌ Error: Faltan columnas en {file_circuitos}. Se esperan: {columnas_esperadas_circuitos}")
-            return None, None, None
-        df_circuitos['Circuito'] = df_circuitos['Circuito'].astype(str).str.strip()
-    else: return None, None, None
-
-    if df_elementos_corte is not None:
-        if not all(col in df_elementos_corte.columns for col in columnas_esperadas_elementos_corte):
-            faltantes_ec = [col for col in columnas_esperadas_elementos_corte if col not in df_elementos_corte.columns]
-            print(f"❌ Error: Faltan columnas en {file_elementos_corte}. Se esperan: {columnas_esperadas_elementos_corte}. Faltan: {faltantes_ec}")
-            return None, None, None
-        df_elementos_corte['G3E_FID'] = df_elementos_corte['G3E_FID'].astype(str).str.strip()
-        df_elementos_corte['NODO1_ID'] = df_elementos_corte['NODO1_ID'].astype(str).str.strip()
-        df_elementos_corte['NODO2_ID'] = df_elementos_corte['NODO2_ID'].astype(str).str.strip()
-        df_elementos_corte['CODIGO_OPERATIVO'] = df_elementos_corte['CODIGO_OPERATIVO'].astype(str).str.strip()
-        df_elementos_corte['CIRCUITO'] = df_elementos_corte['CIRCUITO'].astype(str).str.strip()
-        df_elementos_corte['TIPO'] = df_elementos_corte['TIPO'].astype(str).str.strip().str.upper()
-        df_elementos_corte['EST_ESTABLE'] = df_elementos_corte['EST_ESTABLE'].astype(str).str.strip().str.upper()
-    else: return None, None, None
-        
-    if df_lineas is not None:
-        if not all(col in df_lineas.columns for col in columnas_esperadas_lineas):
-            faltantes_li = [col for col in columnas_esperadas_lineas if col not in df_lineas.columns]
-            print(f"❌ Error: Faltan columnas en {file_lineas}. Se esperan: {columnas_esperadas_lineas}. Faltan: {faltantes_li}")
-            return None, None, None
-        df_lineas['G3E_FID'] = df_lineas['G3E_FID'].astype(str).str.strip()
-        df_lineas['NODO1_ID'] = df_lineas['NODO1_ID'].astype(str).str.strip()
-        df_lineas['NODO2_ID'] = df_lineas['NODO2_ID'].astype(str).str.strip()
-        df_lineas['CIRCUITO'] = df_lineas['CIRCUITO'].astype(str).str.strip()
-    else: return None, None, None
-
-    return df_circuitos, df_elementos_corte, df_lineas
+data_load = "oracle"
+#data_load="CSV"
 
 def barrido_conectividad_por_circuito(
     circuito_co_inicial,
@@ -342,40 +288,40 @@ def generar_dfs_resultados_finales(df_circuitos, df_elementos_corte_global, df_l
 
 # --- Inicio de la ejecución ---
 if __name__ == "__main__":
-    archivo_circuitos = "Data/circuitos.csv"
-    archivo_elementos_corte = "Data/elementos_corte.csv"
-    archivo_lineas = "Data/Lineas.csv" 
-
+    
+    if data_load == "CSV":
+        archivo_circuitos = "Data/CSV/circuitos.csv"
+        archivo_elementos_corte = "Data/CSV/elementos_corte.csv"
+        archivo_lineas = "Data/CSV/Lineas.csv" 
+        data_list = ["csv","csv","csv"]
+    else:
+        archivo_circuitos = "Data/CSV/circuitos.csv"
+        archivo_elementos_corte = "Data/SQL/elementos_corte.sql"
+        archivo_lineas = "Data/SQL/Lineas.sql" 
+        data_list = ["csv","oracle","oracle"]
+    
     print("🔌 Iniciando proceso de barrido de conectividad eléctrica...")
     
-    df_circuitos, df_ecs, df_lins = cargar_datos(archivo_circuitos, archivo_elementos_corte, archivo_lineas)
+    df_circuitos, df_ecs, df_lins = cargar_datos(
+                                                file_circuitos_location = archivo_circuitos,
+                                                file_elementos_corte_location = archivo_elementos_corte,
+                                                file_lineas_location = archivo_lineas,
+                                                source_types = data_list)
 
     if df_circuitos is not None and df_ecs is not None and df_lins is not None:
-        print("✅ Datos cargados exitosamente.")
         
         df_resultados_ecs, df_resultados_lins = generar_dfs_resultados_finales(df_circuitos, df_ecs, df_lins)
 
         if df_resultados_ecs is not None and df_resultados_lins is not None:
             print("\n🎉 ¡Barridos completados (incluyendo análisis de anillos)!")
             
-            print("\n--- Resultados: Elementos de Corte (primeras filas) ---")
             if not df_resultados_ecs.empty:
                 # Mostrar columnas relevantes para anillos si existen
                 cols_to_show_ecs = ['CODIGO_OPERATIVO', 'EST_ESTABLE', 'Equipo_Padre', 'Circuito_Origen_Barrido', 'Nodo_No_Explorado_Anillo', 'Equipo_anillo', 'Circuito_anillo']
                 cols_exist_ecs = [col for col in cols_to_show_ecs if col in df_resultados_ecs.columns]
-                print(df_resultados_ecs[cols_exist_ecs].head())
                 # df_resultados_ecs.to_excel("resultados_elementos_corte_final_con_anillos.xlsx", index=False)
-                # print("\nResultados de elementos de corte guardados en 'resultados_elementos_corte_final_con_anillos.xlsx'")
             else:
                 print("No se encontraron resultados para elementos de corte.")
-
-            print("\n--- Resultados: Líneas (primeras filas) ---")
-            if not df_resultados_lins.empty:
-                print(df_resultados_lins.head())
-                # df_resultados_lins.to_excel("resultados_lineas_final.xlsx", index=False)
-                # print("\nResultados de líneas guardados en 'resultados_lineas_final.xlsx'")
-            else:
-                print("No se encontraron resultados para líneas.")
 
             # ---- SECCIÓN PARA GENERAR GRAFOS ----
             if not df_resultados_ecs.empty:
@@ -396,22 +342,6 @@ if __name__ == "__main__":
                                 df_datos_circuito=df_circuito_especifico_ecs,
                                 circuito_co_origen=circuito_actual_co,
                                 output_folder=output_folder_grafos,
-                                # --- Parámetros de personalización ---
-                                font_size=8,
-                                line_thickness=0.8,
-                                node_width=1.9,    
-                                node_height=0.5,   
-                                rankdir='TB',
-                                default_node_color='lightsteelblue',
-                                interruptor_principal_color='gold',
-                                estado_closed_color='mediumseagreen', 
-                                estado_open_color='tomato',        
-                                edge_color='dimgray',
-                                font_name='Helvetica',
-                                # Nuevos colores para anillos
-                                anillo_interno_color='blue',
-                                anillo_externo_color='red',
-                                circuito_externo_node_color='lightpink'
                             )
                         else:
                             print(f"    ℹ️ No hay datos de elementos de corte para el circuito {circuito_actual_co} para generar grafo.")
