@@ -11,8 +11,10 @@ def barrido_conectividad_por_circuito(
     circuito_co_inicial,
     df_elementos_corte_circuito, # Ya filtrado para el circuito de arranque
     df_lineas_circuito,          # Ya filtrado para el circuito de arranque
+    df_trafos_circuito,          # DataFrame de transformadores (filtrado o global según tu diseño)
     resultados_elementos_corte_global_lista,
-    resultados_lineas_global_lista
+    resultados_lineas_global_lista,
+    resultados_transformadores_global_lista # Lista para almacenar los trafos encontrados
     ):
     elementos_arranque = df_elementos_corte_circuito[df_elementos_corte_circuito['CODIGO_OPERATIVO'] == circuito_co_inicial]
     if elementos_arranque.empty:
@@ -24,12 +26,13 @@ def barrido_conectividad_por_circuito(
 
     visitados_ec_fids_este_circuito = set()
     visitados_lineas_fids_este_circuito = set()
+    visitados_trafos_fids_este_circuito = set() # Para no procesar el mismo trafo múltiples veces
 
     elemento_arranque_dict = elemento_arranque.to_dict()
     elemento_arranque_dict['Equipo_Padre'] = None 
     elemento_arranque_dict['Elementos_Aguas_Arriba'] = circuito_co_inicial
     elemento_arranque_dict['Circuito_Origen_Barrido'] = circuito_co_inicial
-    elemento_arranque_dict['Nodo_No_Explorado_Anillo'] = pd.NA # Inicializar para todos
+    elemento_arranque_dict['Nodo_No_Explorado_Anillo'] = pd.NA 
     resultados_elementos_corte_global_lista.append(elemento_arranque_dict)
     visitados_ec_fids_este_circuito.add(fid_arranque)
 
@@ -37,41 +40,74 @@ def barrido_conectividad_por_circuito(
     camino_co_aguas_arriba_para_hijos_de_arranque = [circuito_co_inicial]
 
     # Añadir nodos del elemento de arranque a la pila (Los interruptores siempre parten del NODO 2)
-    if pd.notna(elemento_arranque['NODO2_ID']) and elemento_arranque['NODO2_ID'] != 'nan':
+    # Nota: Si esta regla no es universal, considera la lógica anterior que chequeaba ambos nodos.
+    if pd.notna(elemento_arranque['NODO2_ID']) and str(elemento_arranque['NODO2_ID']).lower() != 'nan':
         pila_exploracion.append((str(elemento_arranque['G3E_FID']), elemento_arranque['TIPO'], str(elemento_arranque['NODO2_ID']), circuito_co_inicial, list(camino_co_aguas_arriba_para_hijos_de_arranque)))
 
     while pila_exploracion:
         fid_actual, tipo_actual, nodo_actual, co_ec_padre_directo, camino_co_hasta_padre_directo = pila_exploracion.pop()
 
         # Explorar Líneas conectadas al nodo_actual
-        # Usar los dataframes globales para encontrar todas las conexiones posibles
         lineas_conectadas = df_lineas_circuito[
             (df_lineas_circuito['NODO1_ID'] == nodo_actual) | (df_lineas_circuito['NODO2_ID'] == nodo_actual)
         ]
         for _, linea_conectada_row_original in lineas_conectadas.iterrows():
             linea_conectada_row = linea_conectada_row_original.copy()
             linea_fid = str(linea_conectada_row['G3E_FID'])
+            
             if linea_fid not in visitados_lineas_fids_este_circuito:
                 visitados_lineas_fids_este_circuito.add(linea_fid)
                 linea_dict = linea_conectada_row.to_dict()
                 linea_dict['Equipo_Padre'] = co_ec_padre_directo
-                linea_dict['Elementos_Aguas_Arriba'] = ",".join(camino_co_hasta_padre_directo)
-                linea_dict['Circuito_Origen_Barrido'] = circuito_co_inicial # El circuito que inició ESTE barrido
+                elementos_aguas_arriba_linea = ",".join(camino_co_hasta_padre_directo)
+                linea_dict['Elementos_Aguas_Arriba'] = elementos_aguas_arriba_linea
+                linea_dict['Circuito_Origen_Barrido'] = circuito_co_inicial
                 resultados_lineas_global_lista.append(linea_dict)
                 
                 otro_nodo_linea = None
-                if str(linea_conectada_row['NODO1_ID']) == nodo_actual and pd.notna(linea_conectada_row['NODO2_ID']) and str(linea_conectada_row['NODO2_ID']) != 'nan':
+                if str(linea_conectada_row['NODO1_ID']) == nodo_actual and pd.notna(linea_conectada_row['NODO2_ID']) and str(linea_conectada_row['NODO2_ID']).lower() != 'nan':
                     otro_nodo_linea = str(linea_conectada_row['NODO2_ID'])
-                elif str(linea_conectada_row['NODO2_ID']) == nodo_actual and pd.notna(linea_conectada_row['NODO1_ID']) and str(linea_conectada_row['NODO1_ID']) != 'nan':
+                elif str(linea_conectada_row['NODO2_ID']) == nodo_actual and pd.notna(linea_conectada_row['NODO1_ID']) and str(linea_conectada_row['NODO1_ID']).lower() != 'nan':
                     otro_nodo_linea = str(linea_conectada_row['NODO1_ID'])
                 
-                if otro_nodo_linea:
+                # Nodos de la línea actual que podrían conectar a un transformador.
+                # Un transformador se considera conectado a esta línea si uno de sus nodos
+                # coincide con 'nodo_actual' o con 'otro_nodo_linea'.
+                nodos_de_la_linea_actual = set()
+                if pd.notna(nodo_actual) and str(nodo_actual).lower() != 'nan':
+                    nodos_de_la_linea_actual.add(nodo_actual)
+                if pd.notna(otro_nodo_linea) and str(otro_nodo_linea).lower() != 'nan':
+                    nodos_de_la_linea_actual.add(otro_nodo_linea)
+
+                for nodo_en_linea in nodos_de_la_linea_actual:
+                    # Buscar transformadores en df_trafos_circuito conectados a este nodo_en_linea
+                    trafos_encontrados_en_nodo = df_trafos_circuito[
+                        (df_trafos_circuito['NODO1_ID'] == nodo_en_linea) | \
+                        (df_trafos_circuito['NODO2_ID'] == nodo_en_linea)
+                    ]
+
+                    for _, trafo_row_original in trafos_encontrados_en_nodo.iterrows():
+                        trafo_row = trafo_row_original.copy()
+                        trafo_fid = str(trafo_row['G3E_FID'])
+
+                        if trafo_fid not in visitados_trafos_fids_este_circuito:
+                            visitados_trafos_fids_este_circuito.add(trafo_fid)
+                            
+                            trafo_dict = trafo_row.to_dict()
+                            trafo_dict['Linea_Conexion_FID'] = linea_fid # FID de la línea que lo conecta
+                            trafo_dict['Elementos_Aguas_Arriba'] = elementos_aguas_arriba_linea # Hereda de la línea
+                            trafo_dict['Circuito_Origen_Barrido'] = circuito_co_inicial
+                            trafo_dict['Equipo_Padre_Linea'] = co_ec_padre_directo # Padre de la línea
+                            
+                            resultados_transformadores_global_lista.append(trafo_dict)
+                                
+                if otro_nodo_linea: # Si la línea tiene otro extremo, continuar la exploración por él
                     pila_exploracion.append((linea_fid, 'LINEA', otro_nodo_linea, co_ec_padre_directo, list(camino_co_hasta_padre_directo)))
 
         # Explorar Elementos de Corte conectados al nodo_actual
         ecs_conectados = df_elementos_corte_circuito[
             ((df_elementos_corte_circuito['NODO1_ID'] == nodo_actual) | (df_elementos_corte_circuito['NODO2_ID'] == nodo_actual)) &
-            (df_elementos_corte_circuito['G3E_FID'] != fid_actual) # No reconectar al mismo EC desde el que se sale por un nodo
+            (df_elementos_corte_circuito['G3E_FID'] != fid_actual) 
         ]
         for _, ec_conectado_row_original in ecs_conectados.iterrows():
             ec_conectado_row = ec_conectado_row_original.copy()
@@ -83,32 +119,32 @@ def barrido_conectividad_por_circuito(
                 ec_dict['Equipo_Padre'] = co_ec_padre_directo
                 ec_dict['Elementos_Aguas_Arriba'] = ",".join(camino_co_hasta_padre_directo)
                 ec_dict['Circuito_Origen_Barrido'] = circuito_co_inicial
-                ec_dict['Nodo_No_Explorado_Anillo'] = pd.NA # Inicializar
+                ec_dict['Nodo_No_Explorado_Anillo'] = pd.NA 
 
-                # Determinar el nodo no explorado si el EC está ABIERTO o conecta con otro circuito
-                #En caso de que el EC conecte con otro circuito, se hace un artificio, y se asegura que su estado este OPEN para un correcto analisis del anillo que se forma
-                if (ec_conectado_row['CIRCUITO'] != circuito_co_inicial):
-                    ec_conectado_row['EST_ESTABLE'] = 'OPEN'
-                    
+                # Artificio para tratar ECs de interconexión como 'OPEN' para el análisis de anillos
+                if ('CIRCUITO' in ec_conectado_row and ec_conectado_row['CIRCUITO'] != circuito_co_inicial):
+                    ec_conectado_row['EST_ESTABLE'] = 'OPEN' # Modificar copia para la lógica de anillo
+                    ec_dict['EST_ESTABLE_ORIGINAL'] = ec_conectado_row_original['EST_ESTABLE'] # Guardar estado original por si acaso
+                    ec_dict['EST_ESTABLE'] = 'OPEN' # Actualizar el dict que se guarda
+                
                 nodo_no_explorado_para_anillo = pd.NA
-                if ec_conectado_row['EST_ESTABLE'] == 'OPEN':
-                    if str(ec_conectado_row['NODO1_ID']) == nodo_actual and pd.notna(ec_conectado_row['NODO2_ID']) and str(ec_conectado_row['NODO2_ID']) != 'nan':
+                if ec_conectado_row['EST_ESTABLE'] == 'OPEN': # Usar estado potencialmente modificado
+                    if str(ec_conectado_row['NODO1_ID']) == nodo_actual and pd.notna(ec_conectado_row['NODO2_ID']) and str(ec_conectado_row['NODO2_ID']).lower() != 'nan':
                         nodo_no_explorado_para_anillo = str(ec_conectado_row['NODO2_ID'])
-                    elif str(ec_conectado_row['NODO2_ID']) == nodo_actual and pd.notna(ec_conectado_row['NODO1_ID']) and str(ec_conectado_row['NODO1_ID']) != 'nan':
+                    elif str(ec_conectado_row['NODO2_ID']) == nodo_actual and pd.notna(ec_conectado_row['NODO1_ID']) and str(ec_conectado_row['NODO1_ID']).lower() != 'nan':
                         nodo_no_explorado_para_anillo = str(ec_conectado_row['NODO1_ID'])
                     ec_dict['Nodo_No_Explorado_Anillo'] = nodo_no_explorado_para_anillo
                 
                 resultados_elementos_corte_global_lista.append(ec_dict)
 
-                if ec_conectado_row['EST_ESTABLE'] == 'CLOSED': # Solo continuar barrido si está cerrado
+                if ec_conectado_row['EST_ESTABLE'] == 'CLOSED': 
                     nuevo_co_ec_padre_para_hijos = str(ec_conectado_row['CODIGO_OPERATIVO'])
                     nuevo_camino_co_para_hijos = list(camino_co_hasta_padre_directo) + [nuevo_co_ec_padre_para_hijos]
                     
                     otro_nodo_ec_para_explorar = pd.NA
-                    # El nodo por el que se continúa es el que NO es 'nodo_actual'
-                    if str(ec_conectado_row['NODO1_ID']) == nodo_actual and pd.notna(ec_conectado_row['NODO2_ID']) and str(ec_conectado_row['NODO2_ID']) != 'nan':
+                    if str(ec_conectado_row['NODO1_ID']) == nodo_actual and pd.notna(ec_conectado_row['NODO2_ID']) and str(ec_conectado_row['NODO2_ID']).lower() != 'nan':
                         otro_nodo_ec_para_explorar = str(ec_conectado_row['NODO2_ID'])
-                    elif str(ec_conectado_row['NODO2_ID']) == nodo_actual and pd.notna(ec_conectado_row['NODO1_ID']) and str(ec_conectado_row['NODO1_ID']) != 'nan':
+                    elif str(ec_conectado_row['NODO2_ID']) == nodo_actual and pd.notna(ec_conectado_row['NODO1_ID']) and str(ec_conectado_row['NODO1_ID']).lower() != 'nan':
                         otro_nodo_ec_para_explorar = str(ec_conectado_row['NODO1_ID'])
                     
                     if pd.notna(otro_nodo_ec_para_explorar):
@@ -200,13 +236,14 @@ def barrido_anillos_especifico(
     return pd.NA, pd.NA, pd.NA
 
 
-def generar_dfs_resultados_finales(df_circuitos, df_elementos_corte_global, df_lineas_global, verbose=False):
-    if df_circuitos is None or df_elementos_corte_global is None or df_lineas_global is None:
+def generar_dfs_resultados_finales(df_circuitos, df_elementos_corte_global, df_lineas_global, df_trafos_global, verbose=False):
+    if df_circuitos is None or df_elementos_corte_global is None or df_lineas_global is None or df_trafos_global is None:
         print("❌ Error en la carga de datos inicial. No se puede continuar.")
         return None, None
         
     resultados_elementos_corte_acumulados_lista = []
     resultados_lineas_acumulados_lista = []
+    resultados_transformadores_acumulados_lista = []
 
     # --- PRIMER BARRIDO DE CONECTIVIDAD ---
     print("\n🔄 Iniciando primer barrido de conectividad...")
@@ -219,17 +256,21 @@ def generar_dfs_resultados_finales(df_circuitos, df_elementos_corte_global, df_l
         # df_lins_circuito_arranque = df_lineas_global[df_lineas_global['CIRCUITO'] == circuito_co_inicial].copy()
         df_ecs_circuito_arranque = df_elementos_corte_global.copy()
         df_lins_circuito_arranque = df_lineas_global.copy()
+        df_trafos_circuito_arranque = df_trafos_global.copy()
 
         barrido_conectividad_por_circuito(
             circuito_co_inicial,
             df_ecs_circuito_arranque,
             df_lins_circuito_arranque,
+            df_trafos_circuito_arranque,
             resultados_elementos_corte_acumulados_lista,
-            resultados_lineas_acumulados_lista
+            resultados_lineas_acumulados_lista,
+            resultados_transformadores_acumulados_lista
         )
     
     df_final_elementos_corte = pd.DataFrame(resultados_elementos_corte_acumulados_lista)
     df_final_lineas = pd.DataFrame(resultados_lineas_acumulados_lista)
+    df_final_trafos = pd.DataFrame(resultados_transformadores_acumulados_lista)
 
     # Inicializar columnas para información de anillos antes de procesarlos
     if not df_final_elementos_corte.empty:
@@ -286,7 +327,7 @@ def generar_dfs_resultados_finales(df_circuitos, df_elementos_corte_global, df_l
         cols_subset_li_existentes = [col for col in cols_subset_li if col in df_final_lineas.columns]
         df_final_lineas = df_final_lineas.drop_duplicates(subset=cols_subset_li_existentes, keep='first')
         
-    return df_final_elementos_corte, df_final_lineas
+    return df_final_elementos_corte, df_final_lineas, df_final_trafos
 
 
 # --- Inicio de la ejecución ---
@@ -295,25 +336,28 @@ if __name__ == "__main__":
     if data_load == "CSV":
         archivo_circuitos = "Data/CSV/circuitos1.csv"
         archivo_elementos_corte = "Data/CSV/elementos_corte.csv"
-        archivo_lineas = "Data/CSV/Lineas.csv" 
-        data_list = ["csv","csv","csv"]
+        archivo_lineas = "Data/CSV/Lineas.csv"
+        archivo_trafos = "Data/CSV/transformadores.csv"
+        data_list = ["csv","csv","csv","csv"]
     else:
         archivo_circuitos = "Data/CSV/circuitos1.csv"
         archivo_elementos_corte = "Data/SQL/elementos_corte.sql"
         archivo_lineas = "Data/SQL/Lineas.sql" 
-        data_list = ["csv","oracle","oracle"]
+        archivo_trafos = "Data/SQL/transformadores.sql"
+        data_list = ["csv","oracle","oracle","oracle"]
     
     print("🔌 Iniciando proceso de barrido de conectividad eléctrica...")
     
-    df_circuitos, df_ecs, df_lins = cargar_datos(
+    df_circuitos, df_ecs, df_lins, df_trafos = cargar_datos(
                                                 file_circuitos_location = archivo_circuitos,
                                                 file_elementos_corte_location = archivo_elementos_corte,
                                                 file_lineas_location = archivo_lineas,
+                                                file_trafos_location = archivo_trafos,
                                                 source_types = data_list)
 
     if df_circuitos is not None and df_ecs is not None and df_lins is not None:
         
-        df_resultados_ecs, df_resultados_lins = generar_dfs_resultados_finales(df_circuitos, df_ecs, df_lins)
+        df_resultados_ecs, df_resultados_lins, df_resultados_trafos = generar_dfs_resultados_finales(df_circuitos, df_ecs, df_lins, df_trafos)
 
         if df_resultados_ecs is not None and df_resultados_lins is not None:
             print("\n🎉 ¡Barridos completados (incluyendo análisis de anillos)!")

@@ -18,7 +18,8 @@ def cargar_datos(
     file_circuitos_location,
     file_elementos_corte_location,
     file_lineas_location,
-    source_types: list, # Ejemplo: ['csv', 'oracle', 'csv']
+    file_trafos_location,
+    source_types: list, # Ejemplo: ['csv', 'oracle', 'oracle', 'oracle']
     verbose = False
 ):
     """
@@ -38,24 +39,26 @@ def cargar_datos(
                                                        Requerida si alguna fuente es 'oracle'.
 
     Returns:
-        tuple: (df_circuitos, df_elementos_corte, df_lineas) o (None, None, None) si hay error.
+        tuple: (df_circuitos, df_elementos_corte, df_lineas) o (None, None, None, None) si hay error.
     """
 
-    if not isinstance(source_types, list) or len(source_types) != 3:
-        print("❌ Error: El parámetro 'source_types' debe ser una lista con exactamente 3 elementos.")
-        return None, None, None
+    if not isinstance(source_types, list) or len(source_types) != 4:
+        print("❌ Error: El parámetro 'source_types' debe ser una lista con exactamente 4 elementos.")
+        return None, None, None, None
 
     # Mapeo de identificadores a las ubicaciones y tipos de fuente
     locations_map = {
         "df_circuitos": file_circuitos_location,
         "df_elementos_corte": file_elementos_corte_location,
         "df_lineas": file_lineas_location,
+        "df_trafos": file_trafos_location
     }
     
     source_types_map = {
         "df_circuitos": source_types[0].lower(),
         "df_elementos_corte": source_types[1].lower(),
         "df_lineas": source_types[2].lower(),
+        "df_trafos": source_types[3].lower()
     }
 
     # Verificar si se necesita conexión a Oracle y si está disponible
@@ -74,7 +77,7 @@ def cargar_datos(
             db_connection = create_engine(database_uri)
         except Exception:
             print("❌ Error: Al menos un archivo se especificó con fuente 'oracle', pero no se proporcionó 'db_connection'.")
-            return None, None, None
+            return None, None, None, None
 
     # Plantillas de configuración base (igual que en cargar_datos_flexible)
     # Define aquí los tipos de datos esperados y las transformaciones.
@@ -108,6 +111,17 @@ def cargar_datos(
                 "NODO2_ID": {"type": "str", "strip": True},
                 "CIRCUITO": {"type": "str", "strip": True}
             }
+        },
+        {
+            "id": "df_trafos",
+            "expected_cols": ["G3E_FID", "CODIGO", "NODO1_ID", "NODO2_ID", "CIRCUITO"],
+            "cols_to_process": {
+                "G3E_FID": {"type": "str", "strip": True},
+                "CODIGO": {"type": "str", "strip": True},
+                "NODO1_ID": {"type": "str", "strip": True},
+                "NODO2_ID": {"type": "str", "strip": True},
+                "CIRCUITO": {"type": "str", "strip": True}
+            }
         }
     ] # Fin de base_configs_templates
 
@@ -121,7 +135,7 @@ def cargar_datos(
 
         if current_config["data_source"] not in ['csv', 'oracle']:
             print(f"❌ Error: Tipo de fuente '{current_config['data_source']}' para el archivo '{file_id}' no es válido. Use 'csv' o 'oracle'.")
-            return None, None, None
+            return None, None, None, None
         
         file_processing_configs.append(current_config)
 
@@ -141,10 +155,10 @@ def cargar_datos(
                 print(f"  ✅ Archivo CSV '{location}' leido exitosamente.")
             except FileNotFoundError:
                 print(f"❌ Error: Archivo CSV no encontrado - {location}")
-                return None, None, None
+                return None, None, None, None
             except Exception as e:
                 print(f"❌ Error al leer el archivo CSV '{location}': {e}")
-                return None, None, None
+                return None, None, None, None
         elif current_data_source == 'oracle':
             # La comprobación de db_connection ya se hizo si 'oracle' está en las fuentes
             try:
@@ -157,10 +171,10 @@ def cargar_datos(
                 print(f"  ✅ Datos para '{file_id}' leidos exitosamente desde Oracle.")
             except FileNotFoundError:
                 print(f"❌ Error: Archivo SQL no encontrado - {location}")
-                return None, None, None
+                return None, None, None, None
             except Exception as e:
                 print(f"❌ Error al cargar datos desde Oracle para '{file_id}' (SQL file: {location}): {e}")
-                return None, None, None
+                return None, None, None, None
     print("👍 Todos los datos fueron cargados inicialmente.")
 
     # --- PASO 2: Validar columnas y Procesar (convertir tipos, transformar) ---
@@ -180,7 +194,7 @@ def cargar_datos(
             print(f"  Columnas del DataFrame: {list(df.columns)}")
             print(f"  Columnas esperadas: {config['expected_cols']}")
             print(f"  Columnas faltantes detectadas: {missing_cols}")
-            return None, None, None
+            return None, None, None, None
         if verbose: print(f"    ✅ Validación de columnas para '{file_id}' exitosa.")
 
         # 2b. Procesar columnas: convertir tipos y aplicar transformaciones
@@ -225,8 +239,8 @@ def cargar_datos(
                 print(f"❌ Error de Conversión en '{file_id}' (desde {original_location}):")
                 print(f"  No se pudo convertir la columna '{col_name}' al tipo '{target_type_str}'.")
                 print(f"  Error detallado: {e_conv}")
-                return None, None, None
+                return None, None, None, None
         print(f"    ✅ Transformaciones para '{file_id}' completadas.")
 
     print("\n👍 ¡Todos los DataFrames han sido cargados y preprocesados exitosamente")
-    return loaded_dataframes["df_circuitos"], loaded_dataframes["df_elementos_corte"], loaded_dataframes["df_lineas"]
+    return loaded_dataframes["df_circuitos"], loaded_dataframes["df_elementos_corte"], loaded_dataframes["df_lineas"], loaded_dataframes["df_trafos"]
