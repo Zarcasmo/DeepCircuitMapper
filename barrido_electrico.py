@@ -36,10 +36,7 @@ def barrido_conectividad_por_circuito(
     pila_exploracion = []
     camino_co_aguas_arriba_para_hijos_de_arranque = [circuito_co_inicial]
 
-    # Añadir nodos del elemento de arranque a la pila
-    # (fid_del_elemento_padre, tipo_del_elemento_padre, nodo_a_explorar, co_ec_padre_directo, camino_co_hasta_padre_directo)
-    if pd.notna(elemento_arranque['NODO1_ID']) and elemento_arranque['NODO1_ID'] != 'nan':
-        pila_exploracion.append((str(elemento_arranque['G3E_FID']), elemento_arranque['TIPO'], str(elemento_arranque['NODO1_ID']), circuito_co_inicial, list(camino_co_aguas_arriba_para_hijos_de_arranque)))
+    # Añadir nodos del elemento de arranque a la pila (Los interruptores siempre parten del NODO 2)
     if pd.notna(elemento_arranque['NODO2_ID']) and elemento_arranque['NODO2_ID'] != 'nan':
         pila_exploracion.append((str(elemento_arranque['G3E_FID']), elemento_arranque['TIPO'], str(elemento_arranque['NODO2_ID']), circuito_co_inicial, list(camino_co_aguas_arriba_para_hijos_de_arranque)))
 
@@ -72,7 +69,6 @@ def barrido_conectividad_por_circuito(
                     pila_exploracion.append((linea_fid, 'LINEA', otro_nodo_linea, co_ec_padre_directo, list(camino_co_hasta_padre_directo)))
 
         # Explorar Elementos de Corte conectados al nodo_actual
-        # Usar los dataframes globales para encontrar todas las conexiones posibles
         ecs_conectados = df_elementos_corte_circuito[
             ((df_elementos_corte_circuito['NODO1_ID'] == nodo_actual) | (df_elementos_corte_circuito['NODO2_ID'] == nodo_actual)) &
             (df_elementos_corte_circuito['G3E_FID'] != fid_actual) # No reconectar al mismo EC desde el que se sale por un nodo
@@ -89,7 +85,11 @@ def barrido_conectividad_por_circuito(
                 ec_dict['Circuito_Origen_Barrido'] = circuito_co_inicial
                 ec_dict['Nodo_No_Explorado_Anillo'] = pd.NA # Inicializar
 
-                # Determinar el nodo no explorado si el EC está ABIERTO
+                # Determinar el nodo no explorado si el EC está ABIERTO o conecta con otro circuito
+                #En caso de que el EC conecte con otro circuito, se hace un artificio, y se asegura que su estado este OPEN para un correcto analisis del anillo que se forma
+                if (ec_conectado_row['CIRCUITO'] != circuito_co_inicial):
+                    ec_conectado_row['EST_ESTABLE'] = 'OPEN'
+                    
                 nodo_no_explorado_para_anillo = pd.NA
                 if ec_conectado_row['EST_ESTABLE'] == 'OPEN':
                     if str(ec_conectado_row['NODO1_ID']) == nodo_actual and pd.notna(ec_conectado_row['NODO2_ID']) and str(ec_conectado_row['NODO2_ID']) != 'nan':
@@ -212,13 +212,13 @@ def generar_dfs_resultados_finales(df_circuitos, df_elementos_corte_global, df_l
     print("\n🔄 Iniciando primer barrido de conectividad...")
     for _, row_circuito in df_circuitos.iterrows():
         circuito_co_inicial = str(row_circuito['Circuito'])
-        print(f"  Procesando circuito (barrido inicial): {circuito_co_inicial}...")
-        
-        if circuito_co_inicial=='109-28-':
-            print('109-28')
+        print(f"  Procesando circuito (barrido inicial): {circuito_co_inicial}")
+
         # Filtrar elementos y líneas que pertenecen al circuito de arranque para el inicio del barrido
-        df_ecs_circuito_arranque = df_elementos_corte_global[df_elementos_corte_global['CIRCUITO'] == circuito_co_inicial].copy()
-        df_lins_circuito_arranque = df_lineas_global[df_lineas_global['CIRCUITO'] == circuito_co_inicial].copy()
+        # df_ecs_circuito_arranque = df_elementos_corte_global[df_elementos_corte_global['CIRCUITO'] == circuito_co_inicial].copy()
+        # df_lins_circuito_arranque = df_lineas_global[df_lineas_global['CIRCUITO'] == circuito_co_inicial].copy()
+        df_ecs_circuito_arranque = df_elementos_corte_global.copy()
+        df_lins_circuito_arranque = df_lineas_global.copy()
 
         barrido_conectividad_por_circuito(
             circuito_co_inicial,
@@ -243,33 +243,36 @@ def generar_dfs_resultados_finales(df_circuitos, df_elementos_corte_global, df_l
     # --- SEGUNDO BARRIDO (ANÁLISIS DE ANILLOS PARA ECs 'OPEN') ---
     print("\n🔄 Iniciando análisis de anillos para elementos 'OPEN'...")
     if not df_final_elementos_corte.empty:
-        ecs_open_para_anillo = df_final_elementos_corte[
-            (df_final_elementos_corte['EST_ESTABLE'] == 'OPEN') &
-            (df_final_elementos_corte['Nodo_No_Explorado_Anillo'].notna())
-        ].copy()
-
-        if verbose: print(f"  Se encontraron {len(ecs_open_para_anillo)} ECs 'OPEN' con nodos no explorados para análisis de anillo.")
-        for index, row_ec_open in ecs_open_para_anillo.iterrows():
-            co_ec_open = row_ec_open['CODIGO_OPERATIVO']
-            nodo_explorar_anillo = row_ec_open['Nodo_No_Explorado_Anillo']
+        for _, row_circuito in df_circuitos.iterrows():
+            circuito_co_anillo = str(row_circuito['Circuito'])
+            print(f"  Procesando circuito (barrido anillos y transferencias): {circuito_co_anillo}")
+            ecs_open_para_anillo = df_final_elementos_corte[
+                (df_final_elementos_corte['EST_ESTABLE'] == 'OPEN') &
+                (df_final_elementos_corte['Nodo_No_Explorado_Anillo'].notna()) &
+                (df_final_elementos_corte['CIRCUITO'] == circuito_co_anillo)
+            ].copy()
             
-            if verbose: print(f"    Analizando anillo para EC 'OPEN': {co_ec_open} desde nodo {nodo_explorar_anillo}...")
-            
-            equipo_an, eaa_an, circ_an = barrido_anillos_especifico(
-                co_ec_open,
-                nodo_explorar_anillo,
-                df_elementos_corte_global, 
-                df_lineas_global,          
-                df_final_elementos_corte # Pasar el DF actual para consulta
-            )
-            
-            if pd.notna(equipo_an):
-                if verbose: print(f"      Anillo encontrado para {co_ec_open}: Equipo={equipo_an}, Circuito_Anillo={circ_an}")
-                df_final_elementos_corte.loc[index, 'Equipo_anillo'] = equipo_an
-                df_final_elementos_corte.loc[index, 'Elementos_Aguas_Arriba_anillo'] = eaa_an
-                df_final_elementos_corte.loc[index, 'Circuito_anillo'] = circ_an
-            else:
-                if verbose: print(f"      No se encontró conexión de anillo definida para {co_ec_open} desde nodo {nodo_explorar_anillo}.")
+            for index, row_ec_open in ecs_open_para_anillo.iterrows():
+                co_ec_open = row_ec_open['CODIGO_OPERATIVO']
+                nodo_explorar_anillo = row_ec_open['Nodo_No_Explorado_Anillo']
+                
+                if verbose: print(f"    Analizando anillo para EC 'OPEN': {co_ec_open} desde nodo {nodo_explorar_anillo}...")
+                
+                equipo_an, eaa_an, circ_an = barrido_anillos_especifico(
+                    co_ec_open,
+                    nodo_explorar_anillo,
+                    df_elementos_corte_global, 
+                    df_lineas_global,          
+                    df_final_elementos_corte # Pasar el DF actual para consulta
+                )
+                
+                if pd.notna(equipo_an):
+                    if verbose: print(f"      Anillo encontrado para {co_ec_open}: Equipo={equipo_an}, Circuito_Anillo={circ_an}")
+                    df_final_elementos_corte.loc[index, 'Equipo_anillo'] = equipo_an
+                    df_final_elementos_corte.loc[index, 'Elementos_Aguas_Arriba_anillo'] = eaa_an
+                    df_final_elementos_corte.loc[index, 'Circuito_anillo'] = circ_an
+                else:
+                    if verbose: print(f"      No se encontró conexión de anillo definida para {co_ec_open} desde nodo {nodo_explorar_anillo}.")
 
 
     # Eliminar duplicados después de todos los procesamientos
@@ -290,12 +293,12 @@ def generar_dfs_resultados_finales(df_circuitos, df_elementos_corte_global, df_l
 if __name__ == "__main__":
     
     if data_load == "CSV":
-        archivo_circuitos = "Data/CSV/circuitos.csv"
+        archivo_circuitos = "Data/CSV/circuitos1.csv"
         archivo_elementos_corte = "Data/CSV/elementos_corte.csv"
         archivo_lineas = "Data/CSV/Lineas.csv" 
         data_list = ["csv","csv","csv"]
     else:
-        archivo_circuitos = "Data/CSV/circuitos.csv"
+        archivo_circuitos = "Data/CSV/circuitos1.csv"
         archivo_elementos_corte = "Data/SQL/elementos_corte.sql"
         archivo_lineas = "Data/SQL/Lineas.sql" 
         data_list = ["csv","oracle","oracle"]

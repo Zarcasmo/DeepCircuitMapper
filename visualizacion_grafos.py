@@ -41,7 +41,7 @@ def generar_grafo_circuito(
         engine='dot'
     )
 
-    dot.attr(rankdir=rankdir, splines='ortho', overlap='false', nodesep='0.5', ranksep='0.8')
+    dot.attr(rankdir=rankdir, splines='ortho', overlap='sclae', nodesep='0.5', ranksep='0.8')
     
     dot.attr('node', 
              style='filled', 
@@ -123,6 +123,10 @@ def generar_grafo_circuito(
             (df_datos_circuito['EST_ESTABLE'] == 'OPEN') &
             (df_datos_circuito['Equipo_anillo'].notna())
         ]
+        
+        # Crear el subgrafo una sola vez antes del bucle principal
+        #subgrafo_sink = graphviz.Digraph(name="cluster_sink")
+        #subgrafo_sink.attr(rank='sink')
 
         for _, row_nodo_open in ecs_open_con_anillo.iterrows():
             co_ec_open = str(row_nodo_open['CODIGO_OPERATIVO'])
@@ -151,12 +155,13 @@ def generar_grafo_circuito(
                              label=nodo_circuito_externo_label, 
                              shape='box', style='filled,dashed', 
                              fillcolor=circuito_externo_node_color,
-                             color=anillo_externo_color) # Borde del color de la línea
+                             color=anillo_externo_color,
+                             rank='sink') # Borde del color de la línea
                     nodos_externos_creados.add(nodo_circuito_externo_name)
                 
                 dot.edge(co_ec_open, nodo_circuito_externo_name, 
                          color=anillo_externo_color, 
-                         style='dashed', arrowhead='normal', constraint='false')
+                         style='dashed', arrowhead='normal', constraint='true')
                          #label=f"Anillo a Cto.\n{circuito_anillo_val}") # Etiqueta opcional
         
     os.makedirs(output_folder, exist_ok=True)
@@ -165,7 +170,7 @@ def generar_grafo_circuito(
     output_filename_base = f'circuito_ecs_{safe_circuito_co}'
     
     try:
-        filepath = dot.render(filename=output_filename_base, directory=output_folder, format='svg', cleanup=True)
+        filepath = dot.render(filename=output_filename_base, directory=output_folder, format='svg', cleanup=True, quiet=True)
         print(f"✅ Grafo para circuito {circuito_co_origen} guardado en: {filepath}")
     except graphviz.backend.execute.ExecutableNotFound:
         print("❌ ERROR CRÍTICO: El ejecutable de Graphviz no se encontró.")
