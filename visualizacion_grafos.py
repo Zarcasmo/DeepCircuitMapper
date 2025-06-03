@@ -171,7 +171,7 @@ def generar_grafo_circuito(
     
     try:
         filepath = dot.render(filename=output_filename_base, directory=output_folder, format='svg', cleanup=True, quiet=True)
-        print(f"✅ Grafo para circuito {circuito_co_origen} guardado en: {filepath}")
+        #print(f"✅ Grafo para circuito {circuito_co_origen} guardado en: {filepath}")
     except graphviz.backend.execute.ExecutableNotFound:
         print("❌ ERROR CRÍTICO: El ejecutable de Graphviz no se encontró.")
         print("    Por favor, instala Graphviz desde https://graphviz.org/download/ y asegúrate")
