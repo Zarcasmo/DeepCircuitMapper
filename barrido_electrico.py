@@ -566,3 +566,44 @@ def generar_dfs_resultados_finales(df_circuitos, df_elementos_corte_global, df_l
             df_final_lineas = df_final_lineas.drop_duplicates(subset=cols_subset_li_existentes, keep='first')
         
     return df_final_elementos_corte, df_final_lineas, df_final_trafos
+
+
+def summarize_by_circuito(df_final_elementos_corte, df_final_lineas, df_final_trafos):
+    """
+    Generate a summary dataframe grouping by CIRCUITO, counting the number of switching elements,
+    lines, and transformers per circuit.
+    
+    Parameters:
+    df_final_elementos_corte (pd.DataFrame): Final dataframe of switching elements.
+    df_final_lineas (pd.DataFrame): Final dataframe of electrical lines.
+    df_final_trafos (pd.DataFrame): Final dataframe of transformers.
+    
+    Returns:
+    pd.DataFrame: Summary dataframe with counts per circuit.
+    """
+    # Filter to include only rows where Equipo_Padre is not None
+    df_ec_filtered = df_final_elementos_corte[df_final_elementos_corte['Equipo_Padre'].notna()]
+    df_lineas_filtered = df_final_lineas[df_final_lineas['Equipo_Padre'].notna()]
+    df_trafos_filtered = df_final_trafos[df_final_trafos['Linea_Conexion_FID'].notna()]
+    
+    # Count switching elements (ECs) per CIRCUITO
+    ec_counts = df_ec_filtered.groupby('CIRCUITO').size().reset_index(name='Num_Switching_Elements')
+    
+    # Count lines per CIRCUITO
+    lineas_counts = df_lineas_filtered.groupby('CIRCUITO').size().reset_index(name='Num_Lines')
+    
+    # Count transformers per CIRCUITO
+    trafos_counts = df_trafos_filtered.groupby('CIRCUITO').size().reset_index(name='Num_Transformers')
+    
+    # Merge the counts into a single dataframe
+    summary = ec_counts.merge(lineas_counts, on='CIRCUITO', how='inner').merge(trafos_counts, on='CIRCUITO', how='inner')
+    
+    # Fill NaN values with 0 (in case a circuit has no elements of a certain type)
+    summary = summary.fillna(0)
+    
+    # Convert count columns to integers
+    summary['Num_Switching_Elements'] = summary['Num_Switching_Elements'].astype(int)
+    summary['Num_Lines'] = summary['Num_Lines'].astype(int)
+    summary['Num_Transformers'] = summary['Num_Transformers'].astype(int)
+    
+    return summary

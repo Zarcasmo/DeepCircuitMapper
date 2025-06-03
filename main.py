@@ -3,7 +3,7 @@ import pandas as pd
 import time
 
 # ---- Importar funciones del core del barrido y otras dependencias ----
-from barrido_electrico import generar_dfs_resultados_finales
+from barrido_electrico import generar_dfs_resultados_finales, summarize_by_circuito
 from Data_process import cargar_datos 
 from visualizacion_grafos import generar_grafo_circuito 
 
@@ -19,14 +19,14 @@ if __name__ == "__main__":
     # Rutas a los archivos de datos (ajustar según DATA_LOAD_METHOD)
     if DATA_LOAD_METHOD == "CSV":
         # Rutas para carga desde CSV
-        path_archivo_circuitos = "Data/CSV/circuitos.csv" # Corregido a 'circuitos.csv' como en tu último bloque
+        path_archivo_circuitos = "Data/CSV/circuitos1.csv" # Corregido a 'circuitos.csv' como en tu último bloque
         path_archivo_elementos_corte = "Data/CSV/elementos_corte.csv"
         path_archivo_lineas = "Data/CSV/Lineas.csv"
         path_archivo_trafos = "Data/CSV/transformadores.csv"
         data_source_types_list = ["csv", "csv", "csv", "csv"]
     else:  # Asumiendo "oracle"
         # Rutas para carga desde SQL/Oracle (o mixto)
-        path_archivo_circuitos = "Data/CSV/circuitos.csv" # Sigue siendo CSV
+        path_archivo_circuitos = "Data/CSV/circuitos1.csv" # Sigue siendo CSV
         path_archivo_elementos_corte = "Data/SQL/elementos_corte.sql"
         path_archivo_lineas = "Data/SQL/Lineas.sql"
         path_archivo_trafos = "Data/SQL/transformadores.sql"
@@ -64,9 +64,13 @@ if __name__ == "__main__":
             df_trafos_data, 
             verbose=verbose_mode
         )
-
+        
         if df_res_ecs is not None and df_res_lins is not None and df_res_trafos is not None:
             print(f"🎉 ¡Barridos completados (incluyendo análisis de anillos y trafos)!")
+            
+            summary_df = summarize_by_circuito(df_res_ecs, df_res_lins, df_res_trafos)
+            print(f" \n📊 Resultados del proceso del barrido iterativo por circuito en 'summary_df':")
+            print(summary_df)
             
             #Opcional: Guardar resultados en archivos Excel
             if Guardar_resultados:
