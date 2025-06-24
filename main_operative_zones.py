@@ -69,6 +69,7 @@ if __name__ == "__main__":
             print(f"🎉 ¡Barridos completados (incluyendo análisis de anillos y trafos)!")
             
             summary_df = summarize_by_circuito(df_res_ecs, df_res_lins, df_res_trafos)
+            summary_df_original = summarize_by_circuito(df_ecs_data, df_lins_data, df_trafos_data, Equipo_Padre_bandera=False)
             print(f" \n📊 Resultados del proceso del barrido iterativo por circuito:")
             print(summary_df)
             

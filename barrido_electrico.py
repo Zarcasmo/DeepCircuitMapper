@@ -558,6 +558,21 @@ def generar_dfs_resultados_finales(df_circuitos, df_elementos_corte_global, df_l
         cols_subset_ec_existentes = [col for col in cols_subset_ec if col in df_final_elementos_corte.columns]
         if cols_subset_ec_existentes: # Solo si hay columnas válidas para el subset
              df_final_elementos_corte = df_final_elementos_corte.drop_duplicates(subset=cols_subset_ec_existentes, keep='first')
+             
+        #Eliminar duplicados del barrido de anillos, se conserva solo el del barrido original
+        # 1. Creamos una columna auxiliar para identificar las filas donde 'CIRCUITO' y 'Circuito_Origen_Barrido' son iguales.
+        df_final_elementos_corte['COINCIDENCIA_CIRCUITOS'] = (df_final_elementos_corte['CIRCUITO'] == df_final_elementos_corte['Circuito_Origen_Barrido'])
+        
+        # 2. Ordenamos el DataFrame.
+        # Ordenamos de forma descendente por 'COINCIDENCIA_CIRCUITOS'. Así, True (que es 1) irá antes que False (que es 0).
+        # Esto asegura que al eliminar duplicados, la fila con 'COINCIDENCIA_CIRCUITOS' en True sea la que se conserve.
+        df_ordenado_ecs = df_final_elementos_corte.sort_values(by='COINCIDENCIA_CIRCUITOS', ascending=False)
+        
+        # 3. Eliminamos los duplicados basándonos en 'CODIGO_OPERATIVO', conservando la primera ocurrencia después de ordenar.
+        df_limpio_ecs = df_ordenado_ecs.drop_duplicates(subset=['CODIGO_OPERATIVO'], keep='first')
+        
+        # 4. Eliminamos la columna auxiliar temporal para dejar el DataFrame como estaba originalmente.
+        df_final_elementos_corte = df_limpio_ecs.drop(columns=['COINCIDENCIA_CIRCUITOS'])
     
     if not df_final_lineas.empty:
         cols_subset_li = ['G3E_FID', 'Circuito_Origen_Barrido', 'Equipo_Padre', 'Elementos_Aguas_Arriba']
@@ -565,10 +580,25 @@ def generar_dfs_resultados_finales(df_circuitos, df_elementos_corte_global, df_l
         if cols_subset_li_existentes:
             df_final_lineas = df_final_lineas.drop_duplicates(subset=cols_subset_li_existentes, keep='first')
         
+        #Eliminar duplicados del barrido de anillos, se conserva solo el del barrido original
+        # 1. Creamos una columna auxiliar para identificar las filas donde 'CIRCUITO' y 'Circuito_Origen_Barrido' son iguales.
+        df_final_lineas['COINCIDENCIA_CIRCUITOS'] = (df_final_lineas['CIRCUITO'] == df_final_lineas['Circuito_Origen_Barrido'])
+        
+        # 2. Ordenamos el DataFrame.
+        # Ordenamos de forma descendente por 'COINCIDENCIA_CIRCUITOS'. Así, True (que es 1) irá antes que False (que es 0).
+        # Esto asegura que al eliminar duplicados, la fila con 'COINCIDENCIA_CIRCUITOS' en True sea la que se conserve.
+        df_ordenado_lins = df_final_lineas.sort_values(by='COINCIDENCIA_CIRCUITOS', ascending=False)
+        
+        # 3. Eliminamos los duplicados basándonos en 'CODIGO_OPERATIVO', conservando la primera ocurrencia después de ordenar.
+        df_limpio_lins = df_ordenado_lins.drop_duplicates(subset=['G3E_FID'], keep='first')
+        
+        # 4. Eliminamos la columna auxiliar temporal para dejar el DataFrame como estaba originalmente.
+        df_final_lineas = df_limpio_lins.drop(columns=['COINCIDENCIA_CIRCUITOS'])
+        
     return df_final_elementos_corte, df_final_lineas, df_final_trafos
 
 
-def summarize_by_circuito(df_final_elementos_corte, df_final_lineas, df_final_trafos):
+def summarize_by_circuito(df_final_elementos_corte, df_final_lineas, df_final_trafos, Equipo_Padre_bandera=True):
     """
     Generate a summary dataframe grouping by CIRCUITO, counting the number of switching elements,
     lines, and transformers per circuit.
@@ -582,9 +612,14 @@ def summarize_by_circuito(df_final_elementos_corte, df_final_lineas, df_final_tr
     pd.DataFrame: Summary dataframe with counts per circuit.
     """
     # Filter to include only rows where Equipo_Padre is not None
-    df_ec_filtered = df_final_elementos_corte[df_final_elementos_corte['Equipo_Padre'].notna()]
-    df_lineas_filtered = df_final_lineas[df_final_lineas['Equipo_Padre'].notna()]
-    df_trafos_filtered = df_final_trafos[df_final_trafos['Linea_Conexion_FID'].notna()]
+    if Equipo_Padre_bandera:
+        df_ec_filtered = df_final_elementos_corte[df_final_elementos_corte['Equipo_Padre'].notna()]
+        df_lineas_filtered = df_final_lineas[df_final_lineas['Equipo_Padre'].notna()]
+        df_trafos_filtered = df_final_trafos[df_final_trafos['Linea_Conexion_FID'].notna()]
+    else:
+        df_ec_filtered = df_final_elementos_corte.copy()
+        df_lineas_filtered = df_final_lineas.copy()
+        df_trafos_filtered = df_final_trafos.copy()
     
     # Count switching elements (ECs) per CIRCUITO
     ec_counts = df_ec_filtered.groupby('CIRCUITO').size().reset_index(name='Num_Switching_Elements')

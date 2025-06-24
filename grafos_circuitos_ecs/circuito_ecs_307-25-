@@ -1,0 +1,132 @@
+// Diagrama Unifilar del Circuito 307-25- - Elementos de Corte
+digraph Grafo_Circuito_307_25_ {
+	nodesep=0.5 overlap=sclae rankdir=TB ranksep=0.8 splines=ortho
+	node [fixedsize=true fontname=Arial fontsize=10 height=0.6 style=filled width=2.0]
+	edge [arrowsize=0.7 color=gray30 penwidth=1.0]
+	"C-0293" [label="C-0293" fillcolor=tomato shape=ellipse]
+	"S-1397" [label="S-1397" fillcolor=mediumseagreen shape=diamond]
+	"S-2442" [label="S-2442" fillcolor=mediumseagreen shape=diamond]
+	"S-1888" [label="S-1888" fillcolor=mediumseagreen shape=diamond]
+	"SR-0006" [label="SR-0006" fillcolor=mediumseagreen shape=diamond]
+	"R-303" [label="R-303" fillcolor=tomato shape=octagon]
+	"S-2237" [label="S-2237" fillcolor=mediumseagreen shape=diamond]
+	"C-1231" [label="C-1231" fillcolor=mediumseagreen shape=ellipse]
+	"C-1101" [label="C-1101" fillcolor=mediumseagreen shape=ellipse]
+	"S-561" [label="S-561" fillcolor=mediumseagreen shape=diamond]
+	"C-0176" [label="C-0176" fillcolor=tomato shape=ellipse]
+	"S-584" [label="S-584" fillcolor=mediumseagreen shape=diamond]
+	"S-2582" [label="S-2582" fillcolor=mediumseagreen shape=diamond]
+	"S-1794" [label="S-1794" fillcolor=mediumseagreen shape=diamond]
+	"S-2558" [label="S-2558" fillcolor=mediumseagreen shape=diamond]
+	"S-1288" [label="S-1288" fillcolor=mediumseagreen shape=diamond]
+	"C-1313" [label="C-1313" fillcolor=mediumseagreen shape=ellipse]
+	"S-2579" [label="S-2579" fillcolor=mediumseagreen shape=diamond]
+	"S-1586" [label="S-1586" fillcolor=mediumseagreen shape=diamond]
+	"S-2580" [label="S-2580" fillcolor=mediumseagreen shape=diamond]
+	"R-273" [label="R-273" fillcolor=tomato shape=octagon]
+	"C-0372" [label="C-0372" fillcolor=mediumseagreen shape=ellipse]
+	"R-081" [label="R-081" fillcolor=tomato shape=octagon]
+	"S-063" [label="S-063" fillcolor=mediumseagreen shape=diamond]
+	"C-1230" [label="C-1230" fillcolor=mediumseagreen shape=ellipse]
+	"R-057" [label="R-057" fillcolor=mediumseagreen shape=octagon]
+	"S-2443" [label="S-2443" fillcolor=mediumseagreen shape=diamond]
+	"R-250" [label="R-250" fillcolor=tomato shape=octagon]
+	"C-0105" [label="C-0105" fillcolor=mediumseagreen shape=ellipse]
+	"S-1974" [label="S-1974" fillcolor=mediumseagreen shape=diamond]
+	"S-1543" [label="S-1543" fillcolor=mediumseagreen shape=diamond]
+	"S-2581" [label="S-2581" fillcolor=mediumseagreen shape=diamond]
+	"R-124" [label="R-124" fillcolor=mediumseagreen shape=octagon]
+	"C-0373" [label="C-0373" fillcolor=mediumseagreen shape=ellipse]
+	"S-2426" [label="S-2426" fillcolor=mediumseagreen shape=diamond]
+	"C-1229" [label="C-1229" fillcolor=tomato shape=ellipse]
+	"S-679" [label="S-679" fillcolor=mediumseagreen shape=diamond]
+	"S-994" [label="S-994" fillcolor=mediumseagreen shape=diamond]
+	"C-1298" [label="C-1298" fillcolor=mediumseagreen shape=ellipse]
+	"307-25-" [label="307-25-" fillcolor=gold shape=doubleoctagon]
+	"S-1773" [label="S-1773" fillcolor=mediumseagreen shape=diamond]
+	"C-0294" [label="C-0294" fillcolor=tomato shape=ellipse]
+	"S-2261" [label="S-2261" fillcolor=mediumseagreen shape=diamond]
+	"R-269" [label="R-269" fillcolor=tomato shape=octagon]
+	"S-585" [label="S-585" fillcolor=mediumseagreen shape=diamond]
+	"C-1067" [label="C-1067" fillcolor=mediumseagreen shape=ellipse]
+	"S-1290" [label="S-1290" fillcolor=mediumseagreen shape=diamond]
+	"S-2004" [label="S-2004" fillcolor=mediumseagreen shape=diamond]
+	"C-0448" [label="C-0448" fillcolor=mediumseagreen shape=ellipse]
+	"C-1092" [label="C-1092" fillcolor=mediumseagreen shape=ellipse]
+	"C-1300" [label="C-1300" fillcolor=tomato shape=ellipse]
+	"C-0371" [label="C-0371" fillcolor=tomato shape=ellipse]
+	"C-1023" [label="C-1023" fillcolor=mediumseagreen shape=ellipse]
+	"S-1152" [label="S-1152" fillcolor=mediumseagreen shape=diamond]
+	"S-2582" -> "S-1397"
+	"C-1092" -> "R-269"
+	"C-0373" -> "C-0293"
+	"C-0105" -> "C-1229"
+	"C-0105" -> "C-1230"
+	"C-1230" -> "R-057"
+	"R-057" -> "C-1231"
+	"C-1231" -> "SR-0006"
+	"SR-0006" -> "S-584"
+	"S-584" -> "S-1794"
+	"S-1794" -> "S-2442"
+	"S-1794" -> "S-2443"
+	"S-584" -> "S-1773"
+	"SR-0006" -> "S-1152"
+	"C-1231" -> "C-1313"
+	"C-1231" -> "S-2579"
+	"C-1231" -> "S-2580"
+	"C-1313" -> "C-0448"
+	"C-0448" -> "S-2261"
+	"C-0448" -> "S-2237"
+	"C-0448" -> "S-2558"
+	"C-0448" -> "R-081"
+	"C-0448" -> "S-561"
+	"C-1313" -> "S-2581"
+	"C-0373" -> "C-1092"
+	"C-1023" -> "R-250"
+	"C-1067" -> "C-1023"
+	"S-994" -> "S-1974"
+	"307-25-" -> "C-0105"
+	"C-0105" -> "S-585"
+	"C-0105" -> "C-0372"
+	"C-0105" -> "C-0371"
+	"C-0372" -> "R-124"
+	"R-124" -> "C-0373"
+	"C-0373" -> "S-994"
+	"S-994" -> "S-063"
+	"S-063" -> "S-2426"
+	"S-994" -> "C-1101"
+	"C-1067" -> "C-0176"
+	"C-1101" -> "R-273"
+	"S-994" -> "C-0294"
+	"S-994" -> "S-1288"
+	"C-0373" -> "C-1067"
+	"C-0373" -> "S-1543"
+	"C-1067" -> "S-1586"
+	"C-1067" -> "S-1290"
+	"C-1067" -> "C-1300"
+	"C-1067" -> "C-1298"
+	"C-1298" -> "R-303"
+	"C-1313" -> "S-2582"
+	"C-1313" -> "S-2004"
+	"C-1231" -> "S-1888"
+	"C-0105" -> "S-679"
+	ext_circ_307_23_ [label="Circuito:
+307-23-" color=darkorange fillcolor=lightpink rank=sink shape=box style="filled,dashed"]
+	"R-269" -> ext_circ_307_23_ [arrowhead=normal color=darkorange constraint=true style=dashed]
+	"C-0293" -> ext_circ_307_23_ [arrowhead=normal color=darkorange constraint=true style=dashed]
+	"C-1229" -> "C-1231" [arrowhead=normal color=blue constraint=false style=dashed]
+	ext_circ_307_22_ [label="Circuito:
+307-22-" color=darkorange fillcolor=lightpink rank=sink shape=box style="filled,dashed"]
+	"R-081" -> ext_circ_307_22_ [arrowhead=normal color=darkorange constraint=true style=dashed]
+	ext_circ_112_23_ [label="Circuito:
+112-23-" color=darkorange fillcolor=lightpink rank=sink shape=box style="filled,dashed"]
+	"R-250" -> ext_circ_112_23_ [arrowhead=normal color=darkorange constraint=true style=dashed]
+	"C-0371" -> "C-0373" [arrowhead=normal color=blue constraint=false style=dashed]
+	"C-0176" -> ext_circ_112_23_ [arrowhead=normal color=darkorange constraint=true style=dashed]
+	ext_circ_208_26_ [label="Circuito:
+208-26-" color=darkorange fillcolor=lightpink rank=sink shape=box style="filled,dashed"]
+	"R-273" -> ext_circ_208_26_ [arrowhead=normal color=darkorange constraint=true style=dashed]
+	"C-0294" -> ext_circ_208_26_ [arrowhead=normal color=darkorange constraint=true style=dashed]
+	"C-1300" -> ext_circ_112_23_ [arrowhead=normal color=darkorange constraint=true style=dashed]
+	"R-303" -> ext_circ_112_23_ [arrowhead=normal color=darkorange constraint=true style=dashed]
+}
