@@ -66,8 +66,8 @@ def cargar_datos(
     if is_oracle_in_sources:
         try:
             # Detalles de tu conexión
-            user = 'alopagui'
-            password = '6Er3ggTpVQ*'
+            user = 'SQL_ALOPAGUI'
+            password = 'SQL4L0P4GU1'
             host = 'epm-po13'
             port = 1521
             service_name = 'geneprod'
