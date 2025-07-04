@@ -66,11 +66,11 @@ def cargar_datos(
     if is_oracle_in_sources:
         try:
             # Detalles de tu conexión
-            user = 'SQL_ALOPAGUI'
-            password = 'SQL4L0P4GU1'
-            host = 'epm-po13'
-            port = 1521
-            service_name = 'geneprod'
+            user = 'USER'
+            password = 'PASS'
+            host = 'HOST'
+            port = 1234
+            service_name = 'SERVICE'
             # Crea la URI de conexión
             database_uri = f'oracle+cx_oracle://{user}:{password}@{host}:{port}/?service_name={service_name}'
             # Crea el engine usando SQLAlchemy

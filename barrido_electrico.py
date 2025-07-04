@@ -595,6 +595,27 @@ def generar_dfs_resultados_finales(df_circuitos, df_elementos_corte_global, df_l
         # 4. Eliminamos la columna auxiliar temporal para dejar el DataFrame como estaba originalmente.
         df_final_lineas = df_limpio_lins.drop(columns=['COINCIDENCIA_CIRCUITOS'])
         
+    if not df_final_trafos.empty:
+        cols_subset_li = ['G3E_FID', 'Circuito_Origen_Barrido', 'Equipo_Padre_Linea']
+        cols_subset_li_existentes = [col for col in cols_subset_li if col in df_final_lineas.columns]
+        if cols_subset_li_existentes:
+            df_final_lineas = df_final_lineas.drop_duplicates(subset=cols_subset_li_existentes, keep='first')
+        
+        #Eliminar duplicados del barrido de anillos, se conserva solo el del barrido original
+        # 1. Creamos una columna auxiliar para identificar las filas donde 'CIRCUITO' y 'Circuito_Origen_Barrido' son iguales.
+        df_final_trafos['COINCIDENCIA_CIRCUITOS'] = (df_final_trafos['CIRCUITO'] == df_final_trafos['Circuito_Origen_Barrido'])
+        
+        # 2. Ordenamos el DataFrame.
+        # Ordenamos de forma descendente por 'COINCIDENCIA_CIRCUITOS'. Así, True (que es 1) irá antes que False (que es 0).
+        # Esto asegura que al eliminar duplicados, la fila con 'COINCIDENCIA_CIRCUITOS' en True sea la que se conserve.
+        df_ordenado_trafos = df_final_trafos.sort_values(by='COINCIDENCIA_CIRCUITOS', ascending=False)
+        
+        # 3. Eliminamos los duplicados basándonos en 'CODIGO_OPERATIVO', conservando la primera ocurrencia después de ordenar.
+        df_limpio_trafos = df_ordenado_trafos.drop_duplicates(subset=['G3E_FID'], keep='first')
+        
+        # 4. Eliminamos la columna auxiliar temporal para dejar el DataFrame como estaba originalmente.
+        df_final_trafos = df_limpio_trafos.drop(columns=['COINCIDENCIA_CIRCUITOS'])
+        
     return df_final_elementos_corte, df_final_lineas, df_final_trafos
 
 
